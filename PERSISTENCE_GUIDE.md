@@ -143,17 +143,27 @@ Now:
 
 ## 🚀 Deployment on justrunmy.app
 
-The persistence system works perfectly with justrunmy.app because:
-- All data is stored in the `data/` directory
-- Files persist across container restarts
-- Backups are automatically created
-- No database required
+To make your data truly permanent on **justrunmy.app**, you **MUST** configure a Volume Mapping. Without this, your data will be wiped every time the bot restarts or redeploys.
+
+### 1. Configure Volume Mapping
+In your justrunmy.app dashboard, go to the **Volume mapping** section and add a new volume:
+- **Destination (Container Path):** `/app/data`
+- **Source (Host Path):** `supreme-bot-data` (or any name you prefer)
+
+### 2. Set Environment Variable (Recommended)
+To ensure the bot uses the persistent volume correctly, add this to your **Environment Variables**:
+- **Key:** `DATA_DIR`
+- **Value:** `/app/data`
+
+### Why this is necessary:
+- **Without Volume:** Every restart resets your `data/` folder to what's in your GitHub code.
+- **With Volume:** The platform stores your `data/` folder on a permanent disk that survives restarts and updates.
 
 ### Important Notes:
-1. The `data/` directory must be persistent on your hosting
-2. Ensure the bot has write permissions
-3. Regular backups are created automatically
-4. Check logs for persistence confirmations
+1. The `/app/data` directory is where all your JSON files and backups are stored.
+2. Ensure the bot has write permissions (usually handled automatically by the platform).
+3. Regular backups are created automatically inside the volume.
+4. Check logs for: `[PERSISTENCE] Using data directory: /app/data`
 
 ## 📝 Logs to Watch
 

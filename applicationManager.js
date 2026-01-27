@@ -2,14 +2,11 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder
 const fs = require('fs');
 const path = require('path');
 
-const DATA_PATH = path.join(__dirname, 'data', 'active_apps.json');
-const COMPLETED_APPS_PATH = path.join(__dirname, 'data', 'completed_apps.json');
+const persistence = require('./persistenceManager');
+const DATA_PATH = path.join(persistence.dataDir, 'active_apps.json');
+const COMPLETED_APPS_PATH = path.join(persistence.dataDir, 'completed_apps.json');
 const locks = new Set(); 
 const LOG_CHANNEL_ID = '1464393139417645203';
-
-if (!fs.existsSync(path.join(__dirname, 'data'))) {
-    fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
-}
 
 function loadApps() {
     try {

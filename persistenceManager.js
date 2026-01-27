@@ -7,8 +7,12 @@ const path = require('path');
  */
 class PersistenceManager {
     constructor() {
-        this.dataDir = path.join(__dirname, 'data');
-        this.backupDir = path.join(__dirname, 'data', 'backups');
+        // Use environment variable for data directory if available, otherwise fallback to local data folder
+        // On justrunmy.app, you can set DATA_DIR to /app/data
+        this.dataDir = process.env.DATA_DIR || path.join(__dirname, 'data');
+        this.backupDir = path.join(this.dataDir, 'backups');
+        
+        console.log(`[PERSISTENCE] Using data directory: ${this.dataDir}`);
         this.ensureDirectories();
     }
 
