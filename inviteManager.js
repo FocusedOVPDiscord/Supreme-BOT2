@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const syncManager = require('./syncManager');
 
 class InviteManager {
     constructor() {
@@ -27,6 +28,7 @@ class InviteManager {
 
     saveData(data) {
         fs.writeFileSync(this.dataPath, JSON.stringify(data, null, 2));
+        syncManager.sync('Update invite data');
     }
 
     loadJoinHistory() {
@@ -36,6 +38,7 @@ class InviteManager {
 
     saveJoinHistory(data) {
         fs.writeFileSync(this.joinHistoryPath, JSON.stringify(data, null, 2));
+        syncManager.sync('Update join history');
     }
 
     getConfig() {
@@ -45,6 +48,7 @@ class InviteManager {
 
     saveConfig(config) {
         fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2));
+        syncManager.sync('Update invite config');
     }
 
     getUserData(guildId, userId) {

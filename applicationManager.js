@@ -1,6 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, AttachmentBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const syncManager = require('./syncManager');
 
 const DATA_PATH = path.join(__dirname, 'data', 'active_apps.json');
 const COMPLETED_APPS_PATH = path.join(__dirname, 'data', 'completed_apps.json');
@@ -28,6 +29,7 @@ function saveApps(apps) {
         }
         fs.writeFileSync(DATA_PATH, JSON.stringify(apps, null, 2));
         console.log('[APP MANAGER] Saved application data successfully to ' + DATA_PATH);
+        syncManager.sync('Update active applications');
     } catch (e) {
         console.error('[APP MANAGER] Error saving application data:', e);
         throw e; // Re-throw to be caught by the caller
@@ -48,6 +50,7 @@ function saveCompletedApp(userId) {
     if (!completed.includes(userId)) {
         completed.push(userId);
         fs.writeFileSync(COMPLETED_APPS_PATH, JSON.stringify(completed, null, 2));
+        syncManager.sync('Update completed applications');
     }
 }
 

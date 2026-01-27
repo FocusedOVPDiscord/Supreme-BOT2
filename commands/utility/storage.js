@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const syncManager = require('../../syncManager');
 
 const settingsPath = path.join(__dirname, '..', '..', 'data', 'settings.json');
 
@@ -24,6 +25,7 @@ module.exports = {
             if (!data[guildId]) data[guildId] = {};
             data[guildId][key] = value;
             fs.writeFileSync(settingsPath, JSON.stringify(data, null, 4));
+            syncManager.sync('Update settings');
             return true;
         } catch (error) {
             console.error('Error writing settings:', error);
@@ -38,6 +40,7 @@ module.exports = {
             if (data[guildId] && data[guildId][key] !== undefined) {
                 delete data[guildId][key];
                 fs.writeFileSync(settingsPath, JSON.stringify(data, null, 4));
+                syncManager.sync('Delete setting');
                 return true;
             }
             return false;
