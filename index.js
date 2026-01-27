@@ -47,6 +47,17 @@ const client = new Client({
         Partials.GuildMember,
         Partials.ThreadMember
     ],
+    // Technical Improvement: Better memory handling via sweepers
+    sweepers: {
+        messages: {
+            interval: 3600, // Every hour
+            lifetime: 1800, // Remove messages older than 30 mins
+        },
+        users: {
+            interval: 3600,
+            filter: () => user => user.id !== client.user.id, // Keep the bot user
+        }
+    }
 });
 
 /* ===============================
@@ -123,10 +134,19 @@ if (fs.existsSync(eventsPath)) {
         const filePath = path.join(eventsPath, file);
         const event = require(filePath);
 
+        // Technical Improvement: Cleaner UI callbacks and error-safe execution
+        const executeEvent = async (...args) => {
+            try {
+                await event.execute(...args);
+            } catch (error) {
+                console.error(`[EVENT ERROR] Error in event ${event.name}:`, error);
+            }
+        };
+
         if (event.once) {
-            client.once(event.name, (...args) => event.execute(...args));
+            client.once(event.name, executeEvent);
         } else {
-            client.on(event.name, (...args) => event.execute(...args));
+            client.on(event.name, executeEvent);
         }
     }
 }

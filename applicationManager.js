@@ -267,15 +267,34 @@ module.exports = {
             // Log to channel
             const logChannel = interaction.client.channels.cache.get(LOG_CHANNEL_ID);
             if (logChannel) {
+                const now = new Date();
+                const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                
+                const dayName = days[now.getDay()];
+                const monthName = months[now.getMonth()];
+                const date = now.getDate();
+                const year = now.getFullYear();
+                
+                let hours = now.getHours();
+                const minutes = now.getMinutes().toString().padStart(2, '0');
+                const ampm = hours >= 12 ? 'PM' : 'AM';
+                hours = hours % 12;
+                hours = hours ? hours : 12; // the hour '0' should be '12'
+                
+                const formattedDate = `${dayName}, ${monthName} ${date}, ${year} ${hours}:${minutes} ${ampm}`;
+
                 const logEmbed = new EmbedBuilder()
                     .setTitle('New MM Application')
                     .setThumbnail(interaction.user.displayAvatarURL())
                     .setColor(0x00AAFF)
+                    .setDescription(`**Applicant:** <@${interaction.user.id}> (${interaction.user.id})\n**Submitted:** ${formattedDate}`)
                     .addFields(
-                        { name: 'User', value: `${interaction.user.tag} (${interaction.user.id})` },
-                        ...questions.map(q => ({ name: q.label, value: finalData[q.id] || 'N/A' }))
-                    )
-                    .setTimestamp();
+                        ...questions.map(q => ({ 
+                            name: q.label, 
+                            value: finalData[q.id] ? `\`\`\`\n${finalData[q.id]}\n\`\`\`` : '`N/A`' 
+                        }))
+                    );
                 
                 await logChannel.send({ embeds: [logEmbed] });
             }
