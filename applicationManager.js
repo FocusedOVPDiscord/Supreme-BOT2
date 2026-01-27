@@ -2,11 +2,14 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder
 const fs = require('fs');
 const path = require('path');
 
-const persistence = require('./persistenceManager');
-const DATA_PATH = path.join(persistence.dataDir, 'active_apps.json');
-const COMPLETED_APPS_PATH = path.join(persistence.dataDir, 'completed_apps.json');
+const DATA_PATH = path.join(__dirname, 'data', 'active_apps.json');
+const COMPLETED_APPS_PATH = path.join(__dirname, 'data', 'completed_apps.json');
 const locks = new Set(); 
 const LOG_CHANNEL_ID = '1464393139417645203';
+
+if (!fs.existsSync(path.join(__dirname, 'data'))) {
+    fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
+}
 
 function loadApps() {
     try {
@@ -253,78 +256,37 @@ module.exports = {
             const gifUrl = 'https://share.creavite.co/6973ecb1bab97f02c66bd444.gif';
             
             const finishEmbed = new EmbedBuilder()
-                .setTitle('Application Complete')
-                .setDescription('✅ **Application Complete!** Thank you for applying. Our team will review your application soon.')
+                .setTitle('Application Submitted Successfully!')
+                .setDescription('✅ Your application has been submitted and logged. Our team will review it shortly.\n\nThank you for applying!')
+                .setImage(gifUrl)
                 .setColor(0x00FF00)
-                .setImage(gifUrl);
+                .setTimestamp();
 
-            // Send the success message using editReply
             await interaction.editReply({ embeds: [finishEmbed] });
-            console.log(`[APP MANAGER] Sent completion reply to user ${userId}`);
 
-            // Then, send the log to the staff channel in the background
-            try {
-                const client = interaction.client;
-                const channel = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
-                if (channel) {
-                    // Split questions into two embeds if they exceed field limits or for better readability
-                    const logEmbed1 = new EmbedBuilder()
-                        .setTitle('✨ New MM Trainee Application (Part 1)')
-                        .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
-                        .setColor(0x2B2D31)
-                        .setDescription(`**Applicant:** ${interaction.user} (\`${interaction.user.id}\`)\n**Submitted:** <t:${Math.floor(Date.now() / 1000)}:F>`)
-                        .addFields(
-                            questions.slice(0, 5).map(q => ({
-                                name: `🔹 ${q.label}`,
-                                value: `\`\`\`\n${finalData[q.id] || 'No response provided'}\n\`\`\``,
-                                inline: false
-                            }))
-                        );
-
-                    const logEmbed2 = new EmbedBuilder()
-                        .setTitle('✨ New MM Trainee Application (Part 2)')
-                        .setColor(0x2B2D31)
-                        .addFields(
-                            questions.slice(5).map(q => ({
-                                name: `🔹 ${q.label}`,
-                                value: `\`\`\`\n${finalData[q.id] || 'No response provided'}\n\`\`\``,
-                                inline: false
-                            }))
-                        )
-                        .setFooter({ text: 'Supreme | MM Application System • FocusedOVP', iconURL: client.user.displayAvatarURL() })
-                        .setTimestamp();
-
-                    await channel.send({ embeds: [logEmbed1, logEmbed2] });
-                    console.log(`[APP MANAGER] Successfully sent application log for ${userId} to channel ${LOG_CHANNEL_ID}`);
-                } else {
-                    console.error(`[APP MANAGER] Could not find log channel ${LOG_CHANNEL_ID}`);
-                }
-            } catch (logError) {
-                console.error('[APP MANAGER] Error sending application log:', logError);
+            // Log to channel
+            const logChannel = interaction.client.channels.cache.get(LOG_CHANNEL_ID);
+            if (logChannel) {
+                const logEmbed = new EmbedBuilder()
+                    .setTitle('New MM Application')
+                    .setThumbnail(interaction.user.displayAvatarURL())
+                    .setColor(0x00AAFF)
+                    .addFields(
+                        { name: 'User', value: `${interaction.user.tag} (${interaction.user.id})` },
+                        ...questions.map(q => ({ name: q.label, value: finalData[q.id] || 'N/A' }))
+                    )
+                    .setTimestamp();
+                
+                await logChannel.send({ embeds: [logEmbed] });
             }
         }
-    } catch (error) {
-        console.error('[APP MANAGER] Unhandled error in handleModalSubmit:', error);
-        if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({ content: '❌ An unexpected error occurred. Please try again or contact staff.', ephemeral: true });
-        } else {
-            await interaction.editReply({ content: '❌ An unexpected error occurred while processing your submission. Please contact staff.' });
+        } catch (error) {
+            console.error('[APP MANAGER] CRITICAL ERROR in handleModalSubmit:', error);
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({ content: '❌ A critical error occurred while processing your application. Please contact an administrator.', ephemeral: true });
+            } else {
+                await interaction.editReply({ content: '❌ A critical error occurred while processing your application. Please contact an administrator.' });
+            }
         }
-    }
-},
-
-    isApplying: (userId) => {
-        const apps = loadApps();
-        return !!apps[userId];
-    },
-    
-    getAppData: (userId) => {
-        return loadApps()[userId];
-    },
-
-    cancelApplication: (userId) => {
-        const apps = loadApps();
-        delete apps[userId];
-        saveApps(apps);
     }
 };

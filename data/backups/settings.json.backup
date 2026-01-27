@@ -1,9 +1,0 @@
-{
-  "test-guild-789": {},
-  "restart-test-guild": {
-    "welcome_config": {
-      "channelId": "123",
-      "message": "Welcome!"
-    }
-  }
-}
