@@ -1,0 +1,10 @@
+{
+  "test": "value",
+  "number": 123,
+  "nested": {
+    "key": "data"
+  },
+  "guild123": {
+    "setting": "value"
+  }
+}

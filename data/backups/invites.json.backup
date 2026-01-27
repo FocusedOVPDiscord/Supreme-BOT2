@@ -138,5 +138,12 @@
     }
   },
   "test-guild-123": {},
-  "restart-test-guild": {}
+  "restart-test-guild": {
+    "restart-test-user": {
+      "regular": 10,
+      "fake": 3,
+      "bonus": 2,
+      "left": 1
+    }
+  }
 }
