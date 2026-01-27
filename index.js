@@ -25,7 +25,12 @@ console.log('[DEBUG] TOKEN detected, length:', process.env.TOKEN.length);
 /* ===============================
    INITIALIZE DATA
 ================================ */
-initializeDataDirectory();
+// Technical Improvement: Pull latest data from GitHub before initializing
+const syncManager = require('./syncManager');
+(async () => {
+    await syncManager.pullData();
+    initializeDataDirectory();
+})();
 
 /* ===============================
    DISCORD CLIENT

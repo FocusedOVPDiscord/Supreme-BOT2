@@ -15,6 +15,26 @@ class SyncManager {
     }
 
     /**
+     * Pull the latest data from GitHub on startup
+     */
+    async pullData() {
+        console.log('[SYNC] Pulling latest data from GitHub on startup...');
+        return new Promise((resolve) => {
+            // Force pull to ensure we have the latest data files
+            const cmd = `git fetch origin main && git checkout origin/main -- data/`;
+            exec(cmd, { cwd: __dirname }, (error, stdout, stderr) => {
+                if (error) {
+                    console.error(`[SYNC PULL ERROR] ${error.message}`);
+                    resolve(false);
+                } else {
+                    console.log(`[SYNC PULL SUCCESS] Latest data pulled from GitHub`);
+                    resolve(true);
+                }
+            });
+        });
+    }
+
+    /**
      * Trigger a sync to GitHub
      * @param {string} reason - The reason for the sync (for commit message)
      */
