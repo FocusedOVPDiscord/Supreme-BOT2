@@ -1,0 +1,27 @@
+{
+  "name": "supreme-bot",
+  "version": "1.0.0",
+  "description": "SUPREME BOT - Discord Bot running 24/7 on Render",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "discord.js"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "discord.js": "^14.25.1",
+    "dotenv": "^17.2.3",
+    "express": "^4.18.2",
+    "ms": "^2.1.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "fakeAccountAgeHours": 24,
+  "autoFarmWindowMinutes": 30,
+  "requireAvatar": true,
+  "suspiciousUsernamePatterns": [
+    "discord.gg",
+    "http",
+    ".gg",
+    "nitro"
+  ]
+}
