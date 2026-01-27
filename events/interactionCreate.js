@@ -66,8 +66,23 @@ module.exports = {
                 const details = interaction.fields.getTextInputValue('trade_details');
 
                 try {
+                    // Get and increment ticket counter
+                    const counterPath = path.join(__dirname, '..', 'data', 'counter.json');
+                    let counterData = { ticketCount: 0 };
+                    try {
+                        if (fs.existsSync(counterPath)) {
+                            counterData = JSON.parse(fs.readFileSync(counterPath, 'utf8'));
+                        }
+                    } catch (e) {
+                        console.error('[TICKET] Error reading counter:', e);
+                    }
+                    
+                    counterData.ticketCount++;
+                    fs.writeFileSync(counterPath, JSON.stringify(counterData, null, 2));
+                    
+                    const ticketNumber = counterData.ticketCount.toString().padStart(4, '0');
                     const ticketChannel = await guild.channels.create({
-                        name: `ticket-${user.username}`,
+                        name: `ticket-${ticketNumber}`,
                         type: ChannelType.GuildText,
                         parent: CONFIG.TICKET_CATEGORY_ID,
                         permissionOverwrites: [
@@ -86,7 +101,8 @@ module.exports = {
                         createdAt: new Date().toISOString(),
                         partner,
                         type,
-                        details
+                        details,
+                        number: ticketNumber
                     };
                     await ticketChannel.setTopic(JSON.stringify(ticketData));
 
@@ -95,7 +111,7 @@ module.exports = {
                         .setTitle('Middleman Ticket Policy')
                         .setDescription('Welcome to your middleman ticket. Please follow these guidelines:\n\n• Be respectful and professional\n• Provide clear information about your trade\n• Wait for staff verification before proceeding\n• Do not share sensitive information')
                         .setColor('#00FFFF')
-                        .setImage(CONFIG.BANNER_URL);
+                        .setImage('attachment://banner.gif');
 
                     const row = new ActionRowBuilder()
                         .addComponents(
