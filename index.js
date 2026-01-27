@@ -27,10 +27,24 @@ console.log('[DEBUG] TOKEN detected, length:', process.env.TOKEN.length);
 ================================ */
 // Technical Improvement: Pull latest data from GitHub before initializing
 const syncManager = require('./syncManager');
-(async () => {
+
+async function startBot() {
+    console.log('[STARTUP] Syncing data from GitHub...');
     await syncManager.pullData();
+    
+    console.log('[STARTUP] Initializing data directory...');
     initializeDataDirectory();
-})();
+    
+    console.log('[STARTUP] Logging in to Discord...');
+    client.login(process.env.TOKEN)
+        .then(() => console.log('[DEBUG] client.login() promise resolved'))
+        .catch(err => {
+            console.error('❌ Discord login failed:', err);
+            process.exit(1);
+        });
+}
+
+startBot();
 
 /* ===============================
    DISCORD CLIENT
@@ -176,16 +190,7 @@ process.on('unhandledRejection', err => {
     console.error('Unhandled promise rejection:', err);
 });
 
-/* ===============================
-   LOGIN TO DISCORD (IMPORTANT)
-================================ */
-console.log('[DEBUG] Attempting to login to Discord...');
-client.login(process.env.TOKEN)
-    .then(() => console.log('[DEBUG] client.login() promise resolved'))
-    .catch(err => {
-        console.error('❌ Discord login failed:', err);
-        process.exit(1);
-    });
+// Login is now handled in the startBot() function above
 
 /* ===============================
    EXPRESS SERVER (OPTIONAL)
