@@ -1,13 +1,14 @@
 const fs = require('fs');
 const path = require('path');
+const { DATA_DIR, getPath } = require('./pathConfig');
 
 function initializeDataDirectory() {
-    const dataDir = path.join(__dirname, 'data');
+    const dataDir = DATA_DIR;
     
     // Create data directory if it doesn't exist
     if (!fs.existsSync(dataDir)) {
         fs.mkdirSync(dataDir, { recursive: true });
-        console.log('[DATA INIT] Created data directory.');
+        console.log('[DATA INIT] Created data directory at ' + dataDir);
     }
 
     const dataFiles = {
@@ -27,7 +28,7 @@ function initializeDataDirectory() {
 
     // Initialize missing files
     for (const [filename, defaultContent] of Object.entries(dataFiles)) {
-        const filePath = path.join(dataDir, filename);
+        const filePath = getPath(filename);
         if (!fs.existsSync(filePath)) {
             fs.writeFileSync(filePath, JSON.stringify(defaultContent, null, 2));
             console.log(`[DATA INIT] Initialized ${filename}`);

@@ -1,16 +1,11 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, AttachmentBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const syncManager = require('./syncManager');
+const { getPath, DATA_DIR } = require('./pathConfig');
 
-const DATA_PATH = path.join(__dirname, 'data', 'active_apps.json');
-const COMPLETED_APPS_PATH = path.join(__dirname, 'data', 'completed_apps.json');
-const locks = new Set(); 
+const DATA_PATH = getPath('active_apps.json');
+const COMPLETED_APPS_PATH = getPath('completed_apps.json');
 const LOG_CHANNEL_ID = '1464393139417645203';
-
-if (!fs.existsSync(path.join(__dirname, 'data'))) {
-    fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
-}
 
 function loadApps() {
     try {
@@ -23,16 +18,13 @@ function loadApps() {
 
 function saveApps(apps) {
     try {
-        const dir = path.dirname(DATA_PATH);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
+        if (!fs.existsSync(DATA_DIR)) {
+            fs.mkdirSync(DATA_DIR, { recursive: true });
         }
         fs.writeFileSync(DATA_PATH, JSON.stringify(apps, null, 2));
-        console.log('[APP MANAGER] Saved application data successfully to ' + DATA_PATH);
-        syncManager.sync('Update active applications');
     } catch (e) {
         console.error('[APP MANAGER] Error saving application data:', e);
-        throw e; // Re-throw to be caught by the caller
+        throw e;
     }
 }
 
@@ -50,7 +42,6 @@ function saveCompletedApp(userId) {
     if (!completed.includes(userId)) {
         completed.push(userId);
         fs.writeFileSync(COMPLETED_APPS_PATH, JSON.stringify(completed, null, 2));
-        syncManager.sync('Update completed applications');
     }
 }
 
@@ -71,8 +62,6 @@ const questions = [
 module.exports = {
     showApplicationModal: async (interaction) => {
         const userId = interaction.user.id;
-        
-        // Check if already completed
         const completed = loadCompletedApps();
         if (completed.includes(userId)) {
             const completedEmbed = new EmbedBuilder()
@@ -82,7 +71,6 @@ module.exports = {
             return await interaction.reply({ embeds: [completedEmbed], ephemeral: true });
         }
 
-        // Check if in progress
         const apps = loadApps();
         if (apps[userId]) {
             const progressEmbed = new EmbedBuilder()
@@ -167,148 +155,96 @@ module.exports = {
     handleModalSubmit: async (interaction, part) => {
         try {
             const userId = interaction.user.id;
-            console.log(`[APP MANAGER] Handling modal submit for user ${userId}, part ${part}`);
-            
-            let apps;
-            try {
-                apps = loadApps();
-                console.log(`[APP MANAGER] Loaded ${Object.keys(apps).length} active applications`);
-            } catch (error) {
-                console.error('[APP MANAGER] CRITICAL: Failed to load applications:', error);
-                if (!interaction.replied && !interaction.deferred) {
-                    return await interaction.reply({ content: '❌ System error: Could not load application data.', ephemeral: true });
-                } else {
-                    return await interaction.editReply({ content: '❌ System error: Could not load application data.' });
-                }
-            }
+            let apps = loadApps();
         
-        // Initialize if doesn't exist (for part 1) or verify it exists (for parts 2 & 3)
-        if (!apps[userId]) {
-            if (part > 1) {
-                console.error(`[APP MANAGER] ERROR: No application data found for user ${userId} at part ${part}. Current apps keys: ${Object.keys(apps).join(', ')}`);
-                // If user is submitting part 2 or 3 but no data exists, something went wrong
-                const errorEmbed = new EmbedBuilder()
-                    .setTitle('Application Error')
-                    .setDescription('❌ **No application data found.**\n\nThis can happen if the bot restarted or redeployed while you were applying. Please start from **Part 1** again. We apologize for the inconvenience!')
-                    .setColor(0xFF0000);
-                
-                if (!interaction.replied && !interaction.deferred) {
+            if (!apps[userId]) {
+                if (part > 1) {
+                    const errorEmbed = new EmbedBuilder()
+                        .setTitle('Application Error')
+                        .setDescription('❌ **No application data found.**\n\nPlease start from **Part 1** again.')
+                        .setColor(0xFF0000);
                     return await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
-                } else {
-                    return await interaction.editReply({ embeds: [errorEmbed] });
                 }
+                apps[userId] = { answers: {}, step: 1 };
             }
-            console.log(`[APP MANAGER] Initializing new application for user ${userId}`);
-            apps[userId] = { answers: {}, step: 1 };
-        }
 
-        const currentQuestions = part === 1 ? questions.slice(0, 5) : (part === 2 ? questions.slice(5, 10) : questions.slice(10, 11));
-        
-        // Save answers from current part
-        console.log(`[APP MANAGER] Extracting answers for part ${part} for user ${userId}...`);
-        for (const q of currentQuestions) {
-            try {
+            const currentQuestions = part === 1 ? questions.slice(0, 5) : (part === 2 ? questions.slice(5, 10) : questions.slice(10, 11));
+            
+            for (const q of currentQuestions) {
                 const value = interaction.fields.getTextInputValue(q.id);
                 apps[userId].answers[q.id] = value;
-                console.log(`[APP MANAGER] Captured ${q.id}: ${value.substring(0, 20)}${value.length > 20 ? '...' : ''}`);
-            } catch (error) {
-                console.error(`[APP MANAGER] Error getting field ${q.id} for user ${userId}:`, error.message);
-                // If it's a required field and it's missing, that's a problem
-                if (q.required !== false) {
-                    throw new Error(`Required field ${q.id} (${q.label}) is missing in submission.`);
+            }
+
+            if (part < 3) {
+                apps[userId].step = part + 1;
+                saveApps(apps);
+                
+                const nextPartEmbed = new EmbedBuilder()
+                    .setTitle('MM Application - Progress Saved')
+                    .setDescription(`✅ Part ${part} of 3 completed. Click the button below to continue to Part ${part + 1}.`)
+                    .setColor(0x00FF00);
+
+                const row = new ActionRowBuilder()
+                    .addComponents(
+                        new ButtonBuilder()
+                            .setCustomId(`continue_mm_app_part_${part + 1}`)
+                            .setLabel(`Continue to Part ${part + 1}`)
+                            .setStyle(ButtonStyle.Primary)
+                    );
+
+                await interaction.reply({ embeds: [nextPartEmbed], components: [row], ephemeral: true });
+            } else {
+                await interaction.deferReply({ ephemeral: true });
+
+                const finalData = apps[userId].answers;
+                delete apps[userId];
+                saveApps(apps);
+                saveCompletedApp(userId);
+
+                const gifUrl = 'https://share.creavite.co/6973ecb1bab97f02c66bd444.gif';
+                const finishEmbed = new EmbedBuilder()
+                    .setTitle('Application Submitted')
+                    .setDescription('✅ Your application has been submitted and logged. Our team will review it shortly.')
+                    .setImage(gifUrl)
+                    .setColor(0x00FF00)
+                    .setTimestamp();
+
+                await interaction.editReply({ embeds: [finishEmbed] });
+
+                const logChannel = interaction.client.channels.cache.get(LOG_CHANNEL_ID);
+                if (logChannel) {
+                    const now = new Date();
+                    const formattedDate = now.toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+
+                    const logEmbed = new EmbedBuilder()
+                        .setTitle('New MM Application')
+                        .setThumbnail(interaction.user.displayAvatarURL())
+                        .setColor(0x00AAFF)
+                        .setDescription(`**Applicant:** <@${interaction.user.id}> (${interaction.user.id})\n**Submitted:** ${formattedDate}`)
+                        .addFields(
+                            ...questions.map(q => ({ 
+                                name: q.label, 
+                                value: finalData[q.id] ? `\`\`\`\n${finalData[q.id]}\n\`\`\`` : '`N/A`' 
+                            }))
+                        );
+                    
+                    const row = new ActionRowBuilder()
+                        .addComponents(
+                            new ButtonBuilder()
+                                .setCustomId(`mm_app_accept_${interaction.user.id}`)
+                                .setLabel('Accept')
+                                .setStyle(ButtonStyle.Success),
+                            new ButtonBuilder()
+                                .setCustomId(`mm_app_deny_${interaction.user.id}`)
+                                .setLabel('Deny')
+                                .setStyle(ButtonStyle.Danger)
+                        );
+
+                    await logChannel.send({ embeds: [logEmbed], components: [row] });
                 }
             }
-        }
-
-        if (part < 3) {
-            apps[userId].step = part + 1;
-            console.log(`[APP MANAGER] User ${userId} completed part ${part}, moving to part ${part + 1}`);
-            try {
-                saveApps(apps);
-            } catch (error) {
-                console.error('[APP MANAGER] Failed to save apps after part completion:', error);
-                return await interaction.reply({ content: '❌ System error: Could not save your progress.', ephemeral: true });
-            }
-            
-            const nextPartEmbed = new EmbedBuilder()
-                .setTitle('MM Application - Progress Saved')
-                .setDescription(`✅ Part ${part} of 3 completed. Click the button below to continue to Part ${part + 1}.`)
-                .setColor(0x00FF00);
-
-            const row = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId(`continue_mm_app_part_${part + 1}`)
-                        .setLabel(`Continue to Part ${part + 1}`)
-                        .setStyle(ButtonStyle.Primary)
-                );
-
-            await interaction.reply({ embeds: [nextPartEmbed], components: [row], ephemeral: true });
-        } else {
-            console.log(`[APP MANAGER] User ${userId} completed final part 3. Deferring reply...`);
-            
-            // Defer the reply to give the bot more time for processing and logging
-            await interaction.deferReply({ ephemeral: true });
-
-            const finalData = apps[userId].answers;
-            delete apps[userId];
-            saveApps(apps);
-            saveCompletedApp(userId);
-
-            // Prepare the success message
-            const gifUrl = 'https://share.creavite.co/6973ecb1bab97f02c66bd444.gif';
-            
-            const finishEmbed = new EmbedBuilder()
-                .setTitle('Application Submitted Successfully!')
-                .setDescription('✅ Your application has been submitted and logged. Our team will review it shortly.\n\nThank you for applying!')
-                .setImage(gifUrl)
-                .setColor(0x00FF00)
-                .setTimestamp();
-
-            await interaction.editReply({ embeds: [finishEmbed] });
-
-            // Log to channel
-            const logChannel = interaction.client.channels.cache.get(LOG_CHANNEL_ID);
-            if (logChannel) {
-                const now = new Date();
-                const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-                
-                const dayName = days[now.getDay()];
-                const monthName = months[now.getMonth()];
-                const date = now.getDate();
-                const year = now.getFullYear();
-                
-                let hours = now.getHours();
-                const minutes = now.getMinutes().toString().padStart(2, '0');
-                const ampm = hours >= 12 ? 'PM' : 'AM';
-                hours = hours % 12;
-                hours = hours ? hours : 12; // the hour '0' should be '12'
-                
-                const formattedDate = `${dayName}, ${monthName} ${date}, ${year} ${hours}:${minutes} ${ampm}`;
-
-                const logEmbed = new EmbedBuilder()
-                    .setTitle('New MM Application')
-                    .setThumbnail(interaction.user.displayAvatarURL())
-                    .setColor(0x00AAFF)
-                    .setDescription(`**Applicant:** <@${interaction.user.id}> (${interaction.user.id})\n**Submitted:** ${formattedDate}`)
-                    .addFields(
-                        ...questions.map(q => ({ 
-                            name: q.label, 
-                            value: finalData[q.id] ? `\`\`\`\n${finalData[q.id]}\n\`\`\`` : '`N/A`' 
-                        }))
-                    );
-                
-                await logChannel.send({ embeds: [logEmbed] });
-            }
-        }
         } catch (error) {
-            console.error('[APP MANAGER] CRITICAL ERROR in handleModalSubmit:', error);
-            if (!interaction.replied && !interaction.deferred) {
-                await interaction.reply({ content: '❌ A critical error occurred while processing your application. Please contact an administrator.', ephemeral: true });
-            } else {
-                await interaction.editReply({ content: '❌ A critical error occurred while processing your application. Please contact an administrator.' });
-            }
+            console.error('[APP MANAGER] Error in handleModalSubmit:', error);
         }
     }
 };

@@ -1,17 +1,17 @@
 const fs = require('fs');
 const path = require('path');
-const syncManager = require('./syncManager');
+const { getPath, DATA_DIR } = require('./pathConfig');
 
 class InviteManager {
     constructor() {
-        this.dataPath = path.join(__dirname, 'data', 'invites.json');
-        this.joinHistoryPath = path.join(__dirname, 'data', 'join-history.json');
-        this.configPath = path.join(__dirname, 'data', 'invite-config.json');
+        this.dataPath = getPath('invites.json');
+        this.joinHistoryPath = getPath('join-history.json');
+        this.configPath = getPath('invite-config.json');
         this.ensureDataFiles();
     }
 
     ensureDataFiles() {
-        const dataDir = path.join(__dirname, 'data');
+        const dataDir = DATA_DIR;
         if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
         if (!fs.existsSync(this.dataPath)) fs.writeFileSync(this.dataPath, JSON.stringify({}, null, 2));
         if (!fs.existsSync(this.joinHistoryPath)) fs.writeFileSync(this.joinHistoryPath, JSON.stringify({}, null, 2));
@@ -28,7 +28,6 @@ class InviteManager {
 
     saveData(data) {
         fs.writeFileSync(this.dataPath, JSON.stringify(data, null, 2));
-        syncManager.sync('Update invite data');
     }
 
     loadJoinHistory() {
@@ -38,7 +37,6 @@ class InviteManager {
 
     saveJoinHistory(data) {
         fs.writeFileSync(this.joinHistoryPath, JSON.stringify(data, null, 2));
-        syncManager.sync('Update join history');
     }
 
     getConfig() {
@@ -48,7 +46,6 @@ class InviteManager {
 
     saveConfig(config) {
         fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2));
-        syncManager.sync('Update invite config');
     }
 
     getUserData(guildId, userId) {
