@@ -28,6 +28,18 @@ console.log('[DEBUG] TOKEN detected, length:', process.env.TOKEN.length);
 console.log('[STARTUP] Initializing data directory...');
 initializeDataDirectory();
 
+// Run reset script if it exists
+const resetScript = path.join(__dirname, 'reset_limit.js');
+if (fs.existsSync(resetScript)) {
+    try {
+        require('./reset_limit.js');
+        // We don't delete it here to avoid issues with multiple restarts, 
+        // but it will ensure the user is cleared on the next boot.
+    } catch (err) {
+        console.error('[STARTUP] Error running reset script:', err);
+    }
+}
+
 /* ===============================
    DISCORD CLIENT
 ================================ */
