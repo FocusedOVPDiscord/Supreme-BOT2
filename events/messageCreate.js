@@ -1,11 +1,16 @@
 const { Events } = require('discord.js');
+const appManager = require('../applicationManager.js');
 
 module.exports = {
     name: Events.MessageCreate,
     async execute(message) {
         if (message.author.bot) return;
 
-        // Note: MM Application is now handled via Modals in interactionCreate.js
+        // Handle DM responses for MM Application
+        if (!message.guild && message.channel.type === 1) {
+            await appManager.handleDMResponse(message, message.client);
+            return;
+        }
         
         const channel = message.channel;
         const channelName = channel.name;

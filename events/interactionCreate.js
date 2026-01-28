@@ -40,10 +40,6 @@ module.exports = {
         }
 
         if (interaction.isModalSubmit()) {
-            if (interaction.customId === 'mm_application_modal_1') return await appManager.handleModalSubmit(interaction, 1);
-            if (interaction.customId === 'mm_application_modal_2') return await appManager.handleModalSubmit(interaction, 2);
-            if (interaction.customId === 'mm_application_modal_3') return await appManager.handleModalSubmit(interaction, 3);
-
             if (interaction.customId.startsWith('mm_app_accept_modal_')) {
                 const applicantId = interaction.customId.replace('mm_app_accept_modal_', '');
                 const reason = interaction.fields.getTextInputValue('accept_reason');
@@ -190,9 +186,12 @@ module.exports = {
                 return await interaction.showModal(modal);
             }
 
-            if (customId === 'start_mm_app_initial') return await appManager.showApplicationModal(interaction);
-            if (customId === 'continue_mm_app_part_2') return await appManager.showApplicationModalPart2(interaction);
-            if (customId === 'continue_mm_app_part_3') return await appManager.showApplicationModalPart3(interaction);
+            if (customId === 'start_mm_app_initial') return await appManager.startDMApplication(interaction);
+            if (customId === 'confirm_start_mm_app') {
+                await interaction.deferUpdate();
+                return await appManager.askNextQuestion(interaction.user, client, 0);
+            }
+            if (customId === 'cancel_mm_app_and_restart') return await appManager.cancelAndRestart(interaction);
 
             if (customId === 'close_ticket') {
                 const canClose = member.roles.cache.some(role => CONFIG.CAN_CLOSE_ROLES.includes(role.id));
