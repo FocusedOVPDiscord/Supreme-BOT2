@@ -189,7 +189,7 @@ module.exports = {
             if (customId === 'start_mm_app_initial') return await appManager.startDMApplication(interaction);
             if (customId === 'confirm_start_mm_app') {
                 await interaction.deferUpdate();
-                return await appManager.askNextQuestion(interaction.user, client, 0);
+                return await appManager.askNextQuestion(interaction.user, client, 0, interaction);
             }
             if (customId === 'cancel_mm_app_and_restart') return await appManager.cancelAndRestart(interaction);
             if (customId === 'stop_mm_app') return await appManager.stopApplication(interaction);

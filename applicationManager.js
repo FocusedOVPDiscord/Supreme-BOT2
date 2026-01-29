@@ -129,12 +129,21 @@ module.exports = {
         }
     },
 
-    askNextQuestion: async (user, client, currentStep = 0) => {
+    askNextQuestion: async (user, client, currentStep = 0, interaction = null) => {
         const apps = loadApps();
         const userId = user.id;
 
         if (!apps[userId]) {
             apps[userId] = { answers: {}, step: 0 };
+        }
+
+        // If this is the start of the application and we have an interaction, edit the message
+        if (currentStep === 0 && interaction) {
+            const startedEmbed = new EmbedBuilder()
+                .setTitle('Application Started! ✅')
+                .setDescription('The application has begun. I will ask you the questions below one by one.')
+                .setColor(0x00FF00);
+            await interaction.editReply({ embeds: [startedEmbed], components: [] });
         }
 
         if (currentStep >= questions.length) {
@@ -223,11 +232,13 @@ module.exports = {
         }
 
         const stopEmbed = new EmbedBuilder()
-            .setTitle('Application Stopped')
-            .setDescription('✅ Your application has been stopped and all progress has been cleared.')
+            .setTitle('Application Stopped 🛑')
+            .setDescription('Your application has been stopped and all progress has been cleared.')
             .setColor(0xFF0000);
 
-        if (interaction.replied || interaction.deferred) {
+        if (interaction.isButton()) {
+            await interaction.update({ embeds: [stopEmbed], components: [] });
+        } else if (interaction.replied || interaction.deferred) {
             await interaction.followUp({ embeds: [stopEmbed], ephemeral: true });
         } else {
             await interaction.reply({ embeds: [stopEmbed] });
