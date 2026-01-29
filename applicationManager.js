@@ -7,6 +7,9 @@ const DATA_PATH = getPath('active_apps.json');
 const COMPLETED_APPS_PATH = getPath('completed_apps.json');
 const LOG_CHANNEL_ID = '1464393139417645203';
 
+// In-memory lock to prevent multiple simultaneous DM attempts for the same user
+const dmLocks = new Set();
+
 function loadApps() {
     try {
         if (fs.existsSync(DATA_PATH)) {
@@ -96,8 +99,13 @@ const questions = [
 module.exports = {
     startDMApplication: async (interaction) => {
         const userId = interaction.user.id;
-        const completed = loadCompletedApps();
         
+        // Check if we are already processing a request for this user
+        if (dmLocks.has(userId)) {
+            return await interaction.reply({ content: '⚠️ Please wait, I am already trying to send you a DM!', ephemeral: true });
+        }
+
+        const completed = loadCompletedApps();
         if (completed.includes(userId)) {
             const completedEmbed = new EmbedBuilder()
                 .setTitle('Application Already Submitted')
@@ -123,6 +131,9 @@ module.exports = {
 
             return await interaction.reply({ embeds: [progressEmbed], components: [row], ephemeral: true });
         }
+
+        // Lock this user
+        dmLocks.add(userId);
 
         // Send initial DM with start button
         try {
@@ -159,7 +170,14 @@ module.exports = {
                 .setTitle('Cannot Send DM')
                 .setDescription('❌ I couldn\'t send you a DM. Please make sure your DMs are open and try again.')
                 .setColor(0xFF0000);
-            await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+            
+            // If interaction wasn't replied yet
+            if (!interaction.replied) {
+                await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+            }
+        } finally {
+            // Always release the lock after a short delay to prevent spam but allow retries
+            setTimeout(() => dmLocks.delete(userId), 3000);
         }
     },
 
