@@ -1,13 +1,28 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
+const pathConfig = require('../../pathConfig');
 
-const dbPath = process.env.DB_PATH || path.join(__dirname, '../../data/bot.db');
+// Use pathConfig to get the database path, ensuring it's in the persistent /app/data directory
+const dbPath = pathConfig.getPath('supreme_bot_2.db');
 const dbDir = path.dirname(dbPath);
 
-if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
+// --- DEBUG LOGGING FOR VOLUME VERIFICATION ---
+console.log('-------------------------------------------');
+console.log('🔍 [DATABASE DEBUG] Initialization Started');
+console.log(`📂 [DATABASE DEBUG] Target Path: ${dbPath}`);
+console.log(`📂 [DATABASE DEBUG] Directory: ${dbDir}`);
+console.log(`✅ [DATABASE DEBUG] Directory exists: ${fs.existsSync(dbDir)}`);
+
+try {
+    const testFile = path.join(dbDir, '.write_test');
+    fs.writeFileSync(testFile, 'test');
+    fs.unlinkSync(testFile);
+    console.log('📝 [DATABASE DEBUG] Volume Write Test: SUCCESS');
+} catch (e) {
+    console.error('❌ [DATABASE DEBUG] Volume Write Test: FAILED -', e.message);
 }
+console.log('-------------------------------------------');
 
 const db = new Database(dbPath);
 
@@ -36,10 +51,11 @@ db.exec(`
         user_id TEXT NOT NULL,
         message TEXT NOT NULL,
         is_ai INTEGER DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (ticket_id) REFERENCES tickets(id)
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 `);
+
+console.log('🚀 [DATABASE] Supreme Bot 2 Engine initialized.');
 
 module.exports = {
     addTraining: (query, response, category = 'general') => {
@@ -56,16 +72,18 @@ module.exports = {
         return { trainingCount, ticketCount, conversationCount };
     },
     deleteTraining: (id) => {
-        return db.prepare('DELETE FROM training WHERE id = ?').run(id);
+        return db.prepare('DELETE BY training WHERE id = ?').run(id);
     },
     createTicket: (id, userId, category) => {
-        const stmt = db.prepare('INSERT INTO tickets (id, user_id, category) VALUES (?, ?, ?)');
+        const stmt = db.prepare('INSERT OR IGNORE INTO tickets (id, user_id, category) VALUES (?, ?, ?)');
         return stmt.run(id, userId, category);
     },
     updateTicketStatus: (id, status) => {
         return db.prepare('UPDATE tickets SET status = ? WHERE id = ?').run(status, id);
     },
     addConversation: (ticketId, userId, message, isAi = 0) => {
+        // Ensure ticket exists
+        db.prepare('INSERT OR IGNORE INTO tickets (id, user_id, status) VALUES (?, ?, "open")').run(ticketId, userId);
         const stmt = db.prepare('INSERT INTO conversations (ticket_id, user_id, message, is_ai) VALUES (?, ?, ?, ?)');
         return stmt.run(ticketId, userId, message, isAi);
     },
