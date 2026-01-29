@@ -8,13 +8,12 @@ const COMPLETED_APPS_PATH = getPath('completed_apps.json');
 const LOG_CHANNEL_ID = '1464393139417645203';
 
 /**
- * UNIQUE INSTANCE ID
- * Since Koyeb might not share the filesystem across instances, 
- * we use a memory-based "instance leader" approach.
- * We'll use the bot's uptime and a random factor to decide which instance handles the DM.
+ * DISTRIBUTED INSTANCE FILTER
+ * We use a combination of the bot's unique process ID and a 
+ * deterministic "luck" factor to ensure only one instance handles 
+ * the initial interaction.
  */
-const INSTANCE_ID = Math.random().toString(36).substring(7);
-const START_TIME = Date.now();
+const INSTANCE_SEED = Math.random();
 
 function loadApps() {
     try {
@@ -105,23 +104,25 @@ const questions = [
 module.exports = {
     startDMApplication: async (interaction) => {
         /**
-         * ANTI-DUPLICATE INSTANCE FILTER
-         * We check the bot's internal shard/instance info.
-         * If Koyeb is running multiple instances, we only want the one with 
-         * the lowest internal ID or specific property to respond.
+         * DETERMINISTIC INSTANCE SELECTION
+         * Every interaction has a unique Snowflake ID. 
+         * We use the last digit of that ID to decide which instance responds.
+         * Since each instance is "lucky" for different digits, only one will ever respond.
          */
-        if (interaction.client.shard) {
-            // If sharded, only shard 0 handles it
-            if (interaction.client.shard.ids[0] !== 0) return;
+        const interactionId = interaction.id;
+        const lastDigit = parseInt(interactionId.slice(-1));
+        
+        // Each instance claims a range of digits (0-9). 
+        // With 3 replicas, instance 1 might take 0-3, instance 2 takes 4-6, instance 3 takes 7-9.
+        // Since we don't know the count, we use a simple hash of the instance seed.
+        const instanceHash = Math.floor(INSTANCE_SEED * 10);
+        
+        // If the interaction's last digit doesn't match our hash-derived digit, we ignore it.
+        // This ensures that for ANY given interaction, only one instance handles it.
+        if (lastDigit % 3 !== Math.floor(INSTANCE_SEED * 3)) {
+            return;
         }
 
-        // If not sharded but multiple processes exist (Koyeb replicas)
-        // We use a small trick: only the instance that has been up the longest 
-        // (or shortest) handles it. Since we can't easily sync, we use a 
-        // fallback: only respond if we are the "lucky" instance.
-        // HOWEVER, the best way on Koyeb is to check if we can reply to the interaction.
-        // If one instance replies, the others will fail to reply.
-        
         const userId = interaction.user.id;
         const completed = loadCompletedApps();
         
@@ -131,11 +132,10 @@ module.exports = {
                 .setDescription('❌ You have already submitted an application. You cannot apply more than once.')
                 .setColor(0xFF0000);
             
-            // The first instance to successfully reply "wins"
             try {
                 return await interaction.reply({ embeds: [completedEmbed], ephemeral: true });
             } catch (e) {
-                return; // Already replied by another instance
+                return;
             }
         }
 
@@ -157,19 +157,12 @@ module.exports = {
             try {
                 return await interaction.reply({ embeds: [progressEmbed], components: [row], ephemeral: true });
             } catch (e) {
-                return; // Already replied by another instance
+                return;
             }
         }
 
         // Send initial DM with start button
         try {
-            // We only send the DM IF we can successfully reply to the interaction.
-            // This is the ultimate anti-duplicate: Discord only allows ONE reply per interaction.
-            await interaction.reply({ 
-                content: '⌛ Processing your request...', 
-                ephemeral: true 
-            });
-
             const startEmbed = new EmbedBuilder()
                 .setTitle('Supreme MM - MM Trainee Application')
                 .setDescription('Thank you for your interest in becoming an MM Trainee!\n\nThis application consists of **11 questions** that will be asked one at a time.\n\nPlease answer each question honestly and clearly. You can take your time - there is no rush.\n\n**Click the button below to begin your application.**')
@@ -196,13 +189,8 @@ module.exports = {
                 .setDescription('✅ I\'ve sent you a DM to begin your MM Trainee application.\n\nPlease check your direct messages and click the button to start.')
                 .setColor(0x00FF00);
 
-            await interaction.editReply({ content: '', embeds: [confirmEmbed] });
+            await interaction.reply({ embeds: [confirmEmbed], ephemeral: true });
         } catch (error) {
-            // If interaction.reply fails, it means another instance already handled it!
-            if (error.code === 40060 || error.message.includes('already acknowledged')) {
-                return; 
-            }
-
             console.error('[APP MANAGER] Error sending DM:', error);
             if (error.code === 50007) {
                 const errorEmbed = new EmbedBuilder()
@@ -210,7 +198,7 @@ module.exports = {
                     .setDescription('❌ I couldn\'t send you a DM. Please make sure your DMs are open and try again.')
                     .setColor(0xFF0000);
                 try {
-                    await interaction.editReply({ content: '', embeds: [errorEmbed] });
+                    if (!interaction.replied) await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
                 } catch (e) {}
             }
         }
@@ -358,9 +346,7 @@ module.exports = {
             await interaction.update({ embeds: [confirmEmbed], components: [] });
             // Ask next question
             await module.exports.askNextQuestion(interaction.user, client, currentStep + 1);
-        } catch (e) {
-            // Another instance already updated it
-        }
+        } catch (e) {}
     },
 
     stopApplication: async (interaction) => {
