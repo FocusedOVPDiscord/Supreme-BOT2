@@ -59,6 +59,7 @@ console.log('🚀 [DATABASE] Supreme Bot 2 Engine initialized.');
 
 module.exports = {
     addTraining: (query, response, category = 'general') => {
+        console.log(`📚 [DATABASE DEBUG] Adding Training: ${query.substring(0, 30)}...`);
         const stmt = db.prepare('INSERT INTO training (query, response, category) VALUES (?, ?, ?)');
         return stmt.run(query, response, category);
     },
@@ -72,16 +73,20 @@ module.exports = {
         return { trainingCount, ticketCount, conversationCount };
     },
     deleteTraining: (id) => {
-        return db.prepare('DELETE BY training WHERE id = ?').run(id);
+        console.log(`🗑️ [DATABASE DEBUG] Deleting Training ID: ${id}`);
+        return db.prepare('DELETE FROM training WHERE id = ?').run(id);
     },
     createTicket: (id, userId, category) => {
+        console.log(`🎫 [DATABASE DEBUG] Creating Ticket: ${id}`);
         const stmt = db.prepare('INSERT OR IGNORE INTO tickets (id, user_id, category) VALUES (?, ?, ?)');
         return stmt.run(id, userId, category);
     },
     updateTicketStatus: (id, status) => {
+        console.log(`🎫 [DATABASE DEBUG] Updating Ticket Status: ${id} -> ${status}`);
         return db.prepare('UPDATE tickets SET status = ? WHERE id = ?').run(status, id);
     },
     addConversation: (ticketId, userId, message, isAi = 0) => {
+        console.log(`📝 [DATABASE DEBUG] Saving Conversation: [${ticketId}] ${isAi ? 'AI' : 'User'}: ${message.substring(0, 50)}...`);
         // Ensure ticket exists
         db.prepare('INSERT OR IGNORE INTO tickets (id, user_id, status) VALUES (?, ?, "open")').run(ticketId, userId);
         const stmt = db.prepare('INSERT INTO conversations (ticket_id, user_id, message, is_ai) VALUES (?, ?, ?, ?)');
