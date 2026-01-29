@@ -24,6 +24,12 @@ module.exports = {
     async execute(interaction) {
         const { guild, user, member, client, channel } = interaction;
 
+        if (interaction.isStringSelectMenu()) {
+            if (interaction.customId.startsWith('mm_app_select_')) {
+                return await appManager.handleSelectResponse(interaction, client);
+            }
+        }
+
         if (interaction.isChatInputCommand()) {
             const command = client.commands.get(interaction.commandName);
             if (!command) return;

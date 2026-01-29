@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const { getPath, DATA_DIR } = require('./pathConfig');
@@ -46,17 +46,51 @@ function saveCompletedApp(userId) {
 }
 
 const questions = [
-    { id: 'q1', label: '1. What is your age?', placeholder: 'e.g. 18' },
-    { id: 'q2', label: '2. How long active in STB community?', placeholder: 'e.g. 6 months' },
-    { id: 'q3', label: '3. What is your time zone?', placeholder: 'e.g. EST, GMT+1' },
-    { id: 'q4', label: '4. Languages you read/write?', placeholder: 'e.g. English, Spanish' },
-    { id: 'q5', label: '5. Have 2+ Fortnite accounts?', placeholder: 'Yes/No' },
-    { id: 'q6', label: '6. Can record clips & stay online?', placeholder: 'Yes/No' },
-    { id: 'q7', label: '7. Weekly availability?', placeholder: 'e.g. 10-15 hours' },
-    { id: 'q8', label: '8. Any history of bans/scams?', placeholder: 'Yes/No (explain if yes)' },
-    { id: 'q9', label: '9. Explain history (if applicable)', placeholder: 'Leave blank if No above', required: false },
-    { id: 'q10', label: '10. Any vouches?', placeholder: 'List names/servers or "None"' },
-    { id: 'q11', label: '11. Help with other MM services?', placeholder: 'Yes/No' }
+    { 
+        id: 'q1', 
+        label: '1. What is your age?', 
+        type: 'select',
+        options: [
+            { label: 'Under 16', value: 'Under 16' },
+            { label: '16-17', value: '16-17' },
+            { label: '18+', value: '18+' }
+        ]
+    },
+    { id: 'q2', label: '2. How long active in STB community?', placeholder: 'e.g. 6 months', type: 'text' },
+    { id: 'q3', label: '3. What is your time zone?', placeholder: 'e.g. EST, GMT+1', type: 'text' },
+    { id: 'q4', label: '4. Languages you read/write?', placeholder: 'e.g. English, Spanish', type: 'text' },
+    { 
+        id: 'q5', 
+        label: '5. Have 2+ Fortnite accounts?', 
+        type: 'select',
+        options: [
+            { label: 'Yes', value: 'Yes' },
+            { label: 'No', value: 'No' }
+        ]
+    },
+    { 
+        id: 'q6', 
+        label: '6. Can record clips & stay online?', 
+        type: 'select',
+        options: [
+            { label: 'Yes', value: 'Yes' },
+            { label: 'No', value: 'No' }
+        ]
+    },
+    { 
+        id: 'q7', 
+        label: '7. Weekly availability?', 
+        type: 'select',
+        options: [
+            { label: '3 Hours / week', value: '3 Hours / week' },
+            { label: '7-14 Hours / week', value: '7-14 Hours / week' },
+            { label: '14+ Hours / week', value: '14+ Hours / week' }
+        ]
+    },
+    { id: 'q8', label: '8. Any history of bans/scams?', placeholder: 'Yes/No (explain if yes)', type: 'text' },
+    { id: 'q9', label: '9. Explain history (if applicable)', placeholder: 'Leave blank if No above', required: false, type: 'text' },
+    { id: 'q10', label: '10. Any vouches?', placeholder: 'List names/servers or "None"', type: 'text' },
+    { id: 'q11', label: '11. Help with other MM services?', placeholder: 'Yes/No', type: 'text' }
 ];
 
 module.exports = {
@@ -155,9 +189,25 @@ module.exports = {
         const question = questions[currentStep];
         const questionEmbed = new EmbedBuilder()
             .setTitle(`Question ${currentStep + 1} of ${questions.length}`)
-            .setDescription(`**${question.label}**\n\n*${question.placeholder}*${question.required === false ? '\n\n*(Optional - type "skip" to skip)*' : ''}`)
+            .setDescription(`**${question.label}**\n\n${question.type === 'text' ? `*${question.placeholder}*` : '*Select an option from the menu below*'}${question.required === false ? '\n\n*(Optional - type "skip" to skip)*' : ''}`)
             .setColor(0x00AAFF)
             .setFooter({ text: `Progress: ${currentStep + 1}/${questions.length}` });
+
+        const rows = [];
+
+        if (question.type === 'select') {
+            const select = new StringSelectMenuBuilder()
+                .setCustomId(`mm_app_select_${currentStep}`)
+                .setPlaceholder('Choose an option...')
+                .addOptions(
+                    question.options.map(opt => 
+                        new StringSelectMenuOptionBuilder()
+                            .setLabel(opt.label)
+                            .setValue(opt.value)
+                    )
+                );
+            rows.push(new ActionRowBuilder().addComponents(select));
+        }
 
         const stopRow = new ActionRowBuilder()
             .addComponents(
@@ -166,10 +216,11 @@ module.exports = {
                     .setLabel('Stop Application')
                     .setStyle(ButtonStyle.Danger)
             );
+        rows.push(stopRow);
 
         try {
             const dmChannel = await user.createDM();
-            await dmChannel.send({ embeds: [questionEmbed], components: [stopRow] });
+            await dmChannel.send({ embeds: [questionEmbed], components: rows });
 
             // Update step
             apps[userId].step = currentStep;
@@ -193,6 +244,15 @@ module.exports = {
             if (currentStep < 0 || currentStep >= questions.length) return;
 
             const question = questions[currentStep];
+            
+            // If the current question is a select type, we ignore text input unless it's "skip"
+            if (question.type === 'select' && message.content.toLowerCase() !== 'skip') {
+                const warnEmbed = new EmbedBuilder()
+                    .setDescription('⚠️ Please use the selection menu provided to answer this question.')
+                    .setColor(0xFFAA00);
+                return await message.reply({ embeds: [warnEmbed] });
+            }
+
             const answer = message.content.trim();
 
             // Handle skip for optional questions
@@ -222,6 +282,29 @@ module.exports = {
         }
     },
 
+    handleSelectResponse: async (interaction, client) => {
+        const userId = interaction.user.id;
+        const apps = loadApps();
+
+        if (!apps[userId]) return;
+
+        const currentStep = apps[userId].step;
+        const question = questions[currentStep];
+        const answer = interaction.values[0];
+
+        apps[userId].answers[question.id] = answer;
+        saveApps(apps);
+
+        const confirmEmbed = new EmbedBuilder()
+            .setDescription(`✅ Selected: **${answer}**`)
+            .setColor(0x00FF00);
+        
+        await interaction.update({ embeds: [confirmEmbed], components: [] });
+
+        // Ask next question
+        await module.exports.askNextQuestion(interaction.user, client, currentStep + 1);
+    },
+
     stopApplication: async (interaction) => {
         const userId = interaction.user.id;
         const apps = loadApps();
@@ -236,7 +319,7 @@ module.exports = {
             .setDescription('Your application has been stopped and all progress has been cleared.')
             .setColor(0xFF0000);
 
-        if (interaction.isButton()) {
+        if (interaction.isButton() || interaction.isStringSelectMenu()) {
             await interaction.update({ embeds: [stopEmbed], components: [] });
         } else if (interaction.replied || interaction.deferred) {
             await interaction.followUp({ embeds: [stopEmbed], ephemeral: true });
