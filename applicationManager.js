@@ -13,7 +13,9 @@ function loadApps() {
             const content = fs.readFileSync(DATA_PATH, 'utf8');
             return content ? JSON.parse(content) : {};
         }
-    } catch (e) {}
+    } catch (e) {
+        console.error('[APP MANAGER] Error loading active apps:', e);
+    }
     return {};
 }
 
@@ -36,7 +38,9 @@ function loadCompletedApps() {
             const content = fs.readFileSync(COMPLETED_APPS_PATH, 'utf8');
             return content ? JSON.parse(content) : [];
         }
-    } catch (e) {}
+    } catch (e) {
+        console.error('[APP MANAGER] Error loading completed apps:', e);
+    }
     return [];
 }
 
@@ -99,10 +103,12 @@ const questions = [
 module.exports = {
     startDMApplication: async (interaction) => {
         const userId = interaction.user.id;
+        console.log(`[APP MANAGER] User ${userId} requested to start an application.`);
 
         // 1. Check for completed applications
         const completed = loadCompletedApps();
         if (completed.includes(userId)) {
+            console.log(`[APP MANAGER] User ${userId} already has a completed application.`);
             const completedEmbed = new EmbedBuilder()
                 .setTitle('Application Already Submitted')
                 .setDescription('❌ You have already submitted an application. You cannot apply more than once.')
@@ -118,6 +124,7 @@ module.exports = {
         // 2. Check for active applications
         const apps = loadApps();
         if (apps[userId]) {
+            console.log(`[APP MANAGER] User ${userId} already has an active application.`);
             const progressEmbed = new EmbedBuilder()
                 .setTitle('Application Already In Progress')
                 .setDescription('⚠️ You already have an application in progress. Please check your DMs to continue or close it first.')
@@ -133,6 +140,7 @@ module.exports = {
         // 3. Mark as active BEFORE sending DM to prevent race conditions
         apps[userId] = { answers: {}, step: 0, startTime: Date.now(), messageId: null };
         saveApps(apps);
+        console.log(`[APP MANAGER] User ${userId} marked as active.`);
 
         // Send initial DM with start/close buttons
         try {
@@ -158,8 +166,11 @@ module.exports = {
             const dmMessage = await dmChannel.send({ embeds: [startEmbed], components: [startRow] });
             
             // Store the message ID so we can edit it later
-            apps[userId].messageId = dmMessage.id;
-            saveApps(apps);
+            const currentApps = loadApps();
+            if (currentApps[userId]) {
+                currentApps[userId].messageId = dmMessage.id;
+                saveApps(currentApps);
+            }
 
             const confirmEmbed = new EmbedBuilder()
                 .setTitle('Check Your DMs!')
@@ -191,6 +202,7 @@ module.exports = {
         const userId = user.id;
 
         if (!apps[userId]) {
+            console.log(`[APP MANAGER] No active application found for user ${userId} when asking next question.`);
             return;
         }
 
@@ -338,6 +350,7 @@ module.exports = {
         if (apps[userId]) {
             delete apps[userId];
             saveApps(apps);
+            console.log(`[APP MANAGER] User ${userId} application closed.`);
         }
 
         const stopEmbed = new EmbedBuilder()
@@ -368,6 +381,7 @@ module.exports = {
         delete apps[userId];
         saveApps(apps);
         saveCompletedApp(userId);
+        console.log(`[APP MANAGER] User ${userId} application submitted.`);
 
         const gifUrl = 'https://share.creavite.co/6973ecb1bab97f02c66bd444.gif';
         const finishEmbed = new EmbedBuilder()
