@@ -1,17 +1,10 @@
-# Use the official Node.js image
-FROM node:18
-
-# Create and change to the app directory
-WORKDIR /usr/src/app
-
-# Copy package.json and package-lock.json
+FROM node:20-slim
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
 COPY package*.json ./
-
-# Install dependencies
-RUN npm install
-
-# Copy the rest of your app's code
+RUN npm install --production
 COPY . .
-
-# Start the bot
-CMD [ "node", "index.js" ]
+RUN mkdir -p data
+ENV NODE_ENV=production
+ENV DB_PATH=/app/data/bot.db
+CMD ["node", "src/index.js"]
