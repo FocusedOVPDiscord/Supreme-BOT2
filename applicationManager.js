@@ -9,16 +9,15 @@ const LOG_CHANNEL_ID = '1464393139417645203';
 
 /**
  * DISTRIBUTED INSTANCE FILTER
- * We use a combination of the bot's unique process ID and a 
- * deterministic "luck" factor to ensure only one instance handles 
- * the initial interaction.
+ * We use a deterministic "luck" factor based on the interaction snowflake.
  */
 const INSTANCE_SEED = Math.random();
 
 function loadApps() {
     try {
         if (fs.existsSync(DATA_PATH)) {
-            return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
+            const content = fs.readFileSync(DATA_PATH, 'utf8');
+            return content ? JSON.parse(content) : {};
         }
     } catch (e) {}
     return {};
@@ -29,17 +28,20 @@ function saveApps(apps) {
         if (!fs.existsSync(DATA_DIR)) {
             fs.mkdirSync(DATA_DIR, { recursive: true });
         }
-        fs.writeFileSync(DATA_PATH, JSON.stringify(apps, null, 2));
+        // Atomic-like write
+        const tempPath = `${DATA_PATH}.tmp`;
+        fs.writeFileSync(tempPath, JSON.stringify(apps, null, 2));
+        fs.renameSync(tempPath, DATA_PATH);
     } catch (e) {
         console.error('[APP MANAGER] Error saving application data:', e);
-        throw e;
     }
 }
 
 function loadCompletedApps() {
     try {
         if (fs.existsSync(COMPLETED_APPS_PATH)) {
-            return JSON.parse(fs.readFileSync(COMPLETED_APPS_PATH, 'utf8'));
+            const content = fs.readFileSync(COMPLETED_APPS_PATH, 'utf8');
+            return content ? JSON.parse(content) : [];
         }
     } catch (e) {}
     return [];
@@ -105,21 +107,20 @@ module.exports = {
     startDMApplication: async (interaction) => {
         /**
          * DETERMINISTIC INSTANCE SELECTION
-         * Every interaction has a unique Snowflake ID. 
-         * We use the last digit of that ID to decide which instance responds.
+         * Use the interaction ID to decide which bot instance handles the request.
          */
         const interactionId = interaction.id;
         const lastDigit = parseInt(interactionId.slice(-1));
         
-        // Use a modulo based on a reasonable estimate of instances (e.g., 3)
-        // This ensures only one instance handles the interaction
+        // Use a modulo of 3 as a safe bet for Koyeb replicas
         if (lastDigit % 3 !== Math.floor(INSTANCE_SEED * 3)) {
             return;
         }
 
         const userId = interaction.user.id;
+
+        // 1. Check for completed applications
         const completed = loadCompletedApps();
-        
         if (completed.includes(userId)) {
             const completedEmbed = new EmbedBuilder()
                 .setTitle('Application Already Submitted')
@@ -133,6 +134,7 @@ module.exports = {
             }
         }
 
+        // 2. Check for active applications
         const apps = loadApps();
         if (apps[userId]) {
             const progressEmbed = new EmbedBuilder()
@@ -154,6 +156,10 @@ module.exports = {
                 return;
             }
         }
+
+        // 3. Mark as active BEFORE sending DM to prevent race conditions
+        apps[userId] = { answers: {}, step: 0, startTime: Date.now() };
+        saveApps(apps);
 
         // Send initial DM with start button
         try {
@@ -185,6 +191,11 @@ module.exports = {
 
             await interaction.reply({ embeds: [confirmEmbed], ephemeral: true });
         } catch (error) {
+            // If DM fails, remove from active apps so they can try again
+            const currentApps = loadApps();
+            delete currentApps[userId];
+            saveApps(currentApps);
+
             console.error('[APP MANAGER] Error sending DM:', error);
             if (error.code === 50007) {
                 const errorEmbed = new EmbedBuilder()
