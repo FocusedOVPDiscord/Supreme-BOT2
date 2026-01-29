@@ -171,6 +171,10 @@ module.exports = {
             apps[userId] = { answers: {}, step: 0 };
         }
 
+        // Update step in memory
+        apps[userId].step = currentStep;
+        saveApps(apps);
+
         // If this is the start of the application and we have an interaction, edit the message
         if (currentStep === 0 && interaction) {
             const startedEmbed = new EmbedBuilder()
@@ -221,10 +225,6 @@ module.exports = {
         try {
             const dmChannel = await user.createDM();
             await dmChannel.send({ embeds: [questionEmbed], components: rows });
-
-            // Update step
-            apps[userId].step = currentStep;
-            saveApps(apps);
         } catch (error) {
             console.error('[APP MANAGER] Error asking question:', error);
         }
@@ -266,7 +266,7 @@ module.exports = {
                         .setColor(0xFFAA00);
                     return await message.reply({ embeds: [warnEmbed] });
                 }
-                apps[userId].answers[question.id] = answer;
+                apps[userId].answers[question.id] = answer || 'N/A';
             }
 
             saveApps(apps);
@@ -336,6 +336,7 @@ module.exports = {
 
         const finalData = apps[userId].answers;
 
+        // Clean up data
         delete apps[userId];
         saveApps(apps);
         saveCompletedApp(userId);
