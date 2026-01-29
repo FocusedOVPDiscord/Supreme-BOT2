@@ -5,10 +5,8 @@ const { getPath, DATA_DIR } = require('./pathConfig');
 
 const DATA_PATH = getPath('active_apps.json');
 const COMPLETED_APPS_PATH = getPath('completed_apps.json');
+const LOCK_PATH = getPath('dm_locks.json');
 const LOG_CHANNEL_ID = '1464393139417645203';
-
-// In-memory lock to prevent multiple simultaneous DM attempts for the same user
-const dmLocks = new Set();
 
 function loadApps() {
     try {
@@ -46,6 +44,37 @@ function saveCompletedApp(userId) {
         completed.push(userId);
         fs.writeFileSync(COMPLETED_APPS_PATH, JSON.stringify(completed, null, 2));
     }
+}
+
+// Persistent lock functions to handle multiple instances
+function isLocked(userId) {
+    try {
+        if (!fs.existsSync(LOCK_PATH)) return false;
+        const locks = JSON.parse(fs.readFileSync(LOCK_PATH, 'utf8'));
+        const lockTime = locks[userId];
+        if (!lockTime) return false;
+        
+        // Lock expires after 10 seconds
+        if (Date.now() - lockTime > 10000) {
+            delete locks[userId];
+            fs.writeFileSync(LOCK_PATH, JSON.stringify(locks));
+            return false;
+        }
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+function setLock(userId) {
+    try {
+        let locks = {};
+        if (fs.existsSync(LOCK_PATH)) {
+            locks = JSON.parse(fs.readFileSync(LOCK_PATH, 'utf8'));
+        }
+        locks[userId] = Date.now();
+        fs.writeFileSync(LOCK_PATH, JSON.stringify(locks));
+    } catch (e) {}
 }
 
 const questions = [
@@ -100,9 +129,10 @@ module.exports = {
     startDMApplication: async (interaction) => {
         const userId = interaction.user.id;
         
-        // Check if we are already processing a request for this user
-        if (dmLocks.has(userId)) {
-            return await interaction.reply({ content: '⚠️ Please wait, I am already trying to send you a DM!', ephemeral: true });
+        // GLOBAL LOCK CHECK (Works across multiple instances)
+        if (isLocked(userId)) {
+            // Already being processed by this or another instance
+            return; 
         }
 
         const completed = loadCompletedApps();
@@ -132,8 +162,8 @@ module.exports = {
             return await interaction.reply({ embeds: [progressEmbed], components: [row], ephemeral: true });
         }
 
-        // Lock this user
-        dmLocks.add(userId);
+        // Set the Global Lock
+        setLock(userId);
 
         // Send initial DM with start button
         try {
@@ -166,18 +196,14 @@ module.exports = {
             await interaction.reply({ embeds: [confirmEmbed], ephemeral: true });
         } catch (error) {
             console.error('[APP MANAGER] Error sending DM:', error);
-            const errorEmbed = new EmbedBuilder()
-                .setTitle('Cannot Send DM')
-                .setDescription('❌ I couldn\'t send you a DM. Please make sure your DMs are open and try again.')
-                .setColor(0xFF0000);
-            
-            // If interaction wasn't replied yet
-            if (!interaction.replied) {
-                await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+            // If it's a DM error, we want to notify the user
+            if (error.code === 50007) {
+                const errorEmbed = new EmbedBuilder()
+                    .setTitle('Cannot Send DM')
+                    .setDescription('❌ I couldn\'t send you a DM. Please make sure your DMs are open and try again.')
+                    .setColor(0xFF0000);
+                if (!interaction.replied) await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
             }
-        } finally {
-            // Always release the lock after a short delay to prevent spam but allow retries
-            setTimeout(() => dmLocks.delete(userId), 3000);
         }
     },
 
