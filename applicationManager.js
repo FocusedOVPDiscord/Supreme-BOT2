@@ -7,12 +7,6 @@ const DATA_PATH = getPath('active_apps.json');
 const COMPLETED_APPS_PATH = getPath('completed_apps.json');
 const LOG_CHANNEL_ID = '1464393139417645203';
 
-/**
- * DISTRIBUTED INSTANCE FILTER
- * We use a deterministic "luck" factor based on the interaction snowflake.
- */
-const INSTANCE_SEED = Math.random();
-
 function loadApps() {
     try {
         if (fs.existsSync(DATA_PATH)) {
@@ -28,7 +22,6 @@ function saveApps(apps) {
         if (!fs.existsSync(DATA_DIR)) {
             fs.mkdirSync(DATA_DIR, { recursive: true });
         }
-        // Atomic-like write
         const tempPath = `${DATA_PATH}.tmp`;
         fs.writeFileSync(tempPath, JSON.stringify(apps, null, 2));
         fs.renameSync(tempPath, DATA_PATH);
@@ -105,18 +98,6 @@ const questions = [
 
 module.exports = {
     startDMApplication: async (interaction) => {
-        /**
-         * DETERMINISTIC INSTANCE SELECTION
-         * Use the interaction ID to decide which bot instance handles the request.
-         */
-        const interactionId = interaction.id;
-        const lastDigit = parseInt(interactionId.slice(-1));
-        
-        // Use a modulo of 3 as a safe bet for Koyeb replicas
-        if (lastDigit % 3 !== Math.floor(INSTANCE_SEED * 3)) {
-            return;
-        }
-
         const userId = interaction.user.id;
 
         // 1. Check for completed applications
@@ -138,34 +119,26 @@ module.exports = {
         const apps = loadApps();
         if (apps[userId]) {
             const progressEmbed = new EmbedBuilder()
-                .setTitle('Application In Progress')
-                .setDescription('⚠️ You already have an application in progress. Please check your DMs to continue, or cancel it to start over.')
+                .setTitle('Application Already In Progress')
+                .setDescription('⚠️ You already have an application in progress. Please check your DMs to continue or close it first.')
                 .setColor(0xFFAA00);
             
-            const row = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('cancel_mm_app_and_restart')
-                        .setLabel('Cancel & Restart')
-                        .setStyle(ButtonStyle.Danger)
-                );
-
             try {
-                return await interaction.reply({ embeds: [progressEmbed], components: [row], ephemeral: true });
+                return await interaction.reply({ embeds: [progressEmbed], ephemeral: true });
             } catch (e) {
                 return;
             }
         }
 
         // 3. Mark as active BEFORE sending DM to prevent race conditions
-        apps[userId] = { answers: {}, step: 0, startTime: Date.now() };
+        apps[userId] = { answers: {}, step: 0, startTime: Date.now(), messageId: null };
         saveApps(apps);
 
-        // Send initial DM with start button
+        // Send initial DM with start/close buttons
         try {
             const startEmbed = new EmbedBuilder()
                 .setTitle('Supreme MM - MM Trainee Application')
-                .setDescription('Thank you for your interest in becoming an MM Trainee!\n\nThis application consists of **11 questions** that will be asked one at a time.\n\nPlease answer each question honestly and clearly. You can take your time - there is no rush.\n\n**Click the button below to begin your application.**')
+                .setDescription('Thank you for your interest in becoming an MM Trainee!\n\nThis application consists of **11 questions** that will be asked one at a time.\n\nPlease answer each question honestly and clearly. You can take your time - there is no rush.\n\n**Click "Start Application" to begin, or "Close Application" to cancel.**')
                 .setColor(0x00FF00)
                 .setFooter({ text: 'Supreme BOT • FocusedOVP' });
 
@@ -177,12 +150,16 @@ module.exports = {
                         .setStyle(ButtonStyle.Success),
                     new ButtonBuilder()
                         .setCustomId('stop_mm_app')
-                        .setLabel('Cancel')
-                        .setStyle(ButtonStyle.Secondary)
+                        .setLabel('Close Application')
+                        .setStyle(ButtonStyle.Danger)
                 );
 
             const dmChannel = await interaction.user.createDM();
-            await dmChannel.send({ embeds: [startEmbed], components: [startRow] });
+            const dmMessage = await dmChannel.send({ embeds: [startEmbed], components: [startRow] });
+            
+            // Store the message ID so we can edit it later
+            apps[userId].messageId = dmMessage.id;
+            saveApps(apps);
 
             const confirmEmbed = new EmbedBuilder()
                 .setTitle('Check Your DMs!')
@@ -214,7 +191,7 @@ module.exports = {
         const userId = user.id;
 
         if (!apps[userId]) {
-            apps[userId] = { answers: {}, step: 0 };
+            return;
         }
 
         // Update step in memory
@@ -265,7 +242,7 @@ module.exports = {
             .addComponents(
                 new ButtonBuilder()
                     .setCustomId('stop_mm_app')
-                    .setLabel('Stop Application')
+                    .setLabel('Close Application')
                     .setStyle(ButtonStyle.Danger)
             );
         rows.push(stopRow);
@@ -280,7 +257,7 @@ module.exports = {
 
     handleDMResponse: async (message, client) => {
         if (message.author.bot) return;
-        if (!message.guild && (message.channel.type === 1 || message.channel.type === 'DM')) { // DM channel
+        if (!message.guild && (message.channel.type === 1 || message.channel.type === 'DM')) {
             const userId = message.author.id;
             const apps = loadApps();
 
@@ -364,8 +341,8 @@ module.exports = {
         }
 
         const stopEmbed = new EmbedBuilder()
-            .setTitle('Application Stopped 🛑')
-            .setDescription('Your application has been stopped and all progress has been cleared.')
+            .setTitle('Application Closed 🛑')
+            .setDescription('Your application has been closed and all progress has been cleared.')
             .setColor(0xFF0000);
 
         try {
@@ -447,24 +424,5 @@ module.exports = {
 
             await logChannel.send({ embeds: [logEmbed], components: [row] });
         }
-    },
-
-    cancelAndRestart: async (interaction) => {
-        const userId = interaction.user.id;
-        const apps = loadApps();
-        
-        if (apps[userId]) {
-            delete apps[userId];
-            saveApps(apps);
-        }
-
-        const cancelEmbed = new EmbedBuilder()
-            .setTitle('Application Cancelled')
-            .setDescription('✅ Your previous application has been cancelled. You can now start a new one.')
-            .setColor(0x00FF00);
-
-        try {
-            await interaction.reply({ embeds: [cancelEmbed], ephemeral: true });
-        } catch (e) {}
     }
 };
