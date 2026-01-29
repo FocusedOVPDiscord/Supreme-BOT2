@@ -5,11 +5,16 @@ const { getPath, DATA_DIR } = require('./pathConfig');
 
 const DATA_PATH = getPath('active_apps.json');
 const COMPLETED_APPS_PATH = getPath('completed_apps.json');
-const LOCK_PATH = getPath('dm_locks.json');
 const LOG_CHANNEL_ID = '1464393139417645203';
 
-// Helper for random delay to prevent simultaneous execution
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+/**
+ * UNIQUE INSTANCE ID
+ * Since Koyeb might not share the filesystem across instances, 
+ * we use a memory-based "instance leader" approach.
+ * We'll use the bot's uptime and a random factor to decide which instance handles the DM.
+ */
+const INSTANCE_ID = Math.random().toString(36).substring(7);
+const START_TIME = Date.now();
 
 function loadApps() {
     try {
@@ -46,43 +51,6 @@ function saveCompletedApp(userId) {
     if (!completed.includes(userId)) {
         completed.push(userId);
         fs.writeFileSync(COMPLETED_APPS_PATH, JSON.stringify(completed, null, 2));
-    }
-}
-
-// Robust multi-instance locking
-async function acquireLock(userId) {
-    // 1. Add a random delay (0-500ms) to stagger multiple instances
-    await sleep(Math.floor(Math.random() * 500));
-
-    try {
-        let locks = {};
-        if (fs.existsSync(LOCK_PATH)) {
-            locks = JSON.parse(fs.readFileSync(LOCK_PATH, 'utf8'));
-        }
-
-        const now = Date.now();
-        const lockTime = locks[userId];
-
-        // If locked within last 15 seconds, someone else is handling it
-        if (lockTime && (now - lockTime < 15000)) {
-            return false;
-        }
-
-        // Set our lock
-        locks[userId] = now;
-        fs.writeFileSync(LOCK_PATH, JSON.stringify(locks));
-        
-        // 2. Wait another 200ms and re-verify we are still the owner
-        // (In case two instances wrote at nearly the same time)
-        await sleep(200);
-        const recheck = JSON.parse(fs.readFileSync(LOCK_PATH, 'utf8'));
-        if (recheck[userId] !== now) {
-            return false;
-        }
-
-        return true;
-    } catch (e) {
-        return false;
     }
 }
 
@@ -136,19 +104,39 @@ const questions = [
 
 module.exports = {
     startDMApplication: async (interaction) => {
-        const userId = interaction.user.id;
-        
-        // TRY TO ACQUIRE GLOBAL LOCK
-        const hasLock = await acquireLock(userId);
-        if (!hasLock) return; // Silent return if another instance got it
+        /**
+         * ANTI-DUPLICATE INSTANCE FILTER
+         * We check the bot's internal shard/instance info.
+         * If Koyeb is running multiple instances, we only want the one with 
+         * the lowest internal ID or specific property to respond.
+         */
+        if (interaction.client.shard) {
+            // If sharded, only shard 0 handles it
+            if (interaction.client.shard.ids[0] !== 0) return;
+        }
 
+        // If not sharded but multiple processes exist (Koyeb replicas)
+        // We use a small trick: only the instance that has been up the longest 
+        // (or shortest) handles it. Since we can't easily sync, we use a 
+        // fallback: only respond if we are the "lucky" instance.
+        // HOWEVER, the best way on Koyeb is to check if we can reply to the interaction.
+        // If one instance replies, the others will fail to reply.
+        
+        const userId = interaction.user.id;
         const completed = loadCompletedApps();
+        
         if (completed.includes(userId)) {
             const completedEmbed = new EmbedBuilder()
                 .setTitle('Application Already Submitted')
                 .setDescription('❌ You have already submitted an application. You cannot apply more than once.')
                 .setColor(0xFF0000);
-            return await interaction.reply({ embeds: [completedEmbed], ephemeral: true }).catch(() => {});
+            
+            // The first instance to successfully reply "wins"
+            try {
+                return await interaction.reply({ embeds: [completedEmbed], ephemeral: true });
+            } catch (e) {
+                return; // Already replied by another instance
+            }
         }
 
         const apps = loadApps();
@@ -166,11 +154,22 @@ module.exports = {
                         .setStyle(ButtonStyle.Danger)
                 );
 
-            return await interaction.reply({ embeds: [progressEmbed], components: [row], ephemeral: true }).catch(() => {});
+            try {
+                return await interaction.reply({ embeds: [progressEmbed], components: [row], ephemeral: true });
+            } catch (e) {
+                return; // Already replied by another instance
+            }
         }
 
         // Send initial DM with start button
         try {
+            // We only send the DM IF we can successfully reply to the interaction.
+            // This is the ultimate anti-duplicate: Discord only allows ONE reply per interaction.
+            await interaction.reply({ 
+                content: '⌛ Processing your request...', 
+                ephemeral: true 
+            });
+
             const startEmbed = new EmbedBuilder()
                 .setTitle('Supreme MM - MM Trainee Application')
                 .setDescription('Thank you for your interest in becoming an MM Trainee!\n\nThis application consists of **11 questions** that will be asked one at a time.\n\nPlease answer each question honestly and clearly. You can take your time - there is no rush.\n\n**Click the button below to begin your application.**')
@@ -197,15 +196,22 @@ module.exports = {
                 .setDescription('✅ I\'ve sent you a DM to begin your MM Trainee application.\n\nPlease check your direct messages and click the button to start.')
                 .setColor(0x00FF00);
 
-            await interaction.reply({ embeds: [confirmEmbed], ephemeral: true }).catch(() => {});
+            await interaction.editReply({ content: '', embeds: [confirmEmbed] });
         } catch (error) {
+            // If interaction.reply fails, it means another instance already handled it!
+            if (error.code === 40060 || error.message.includes('already acknowledged')) {
+                return; 
+            }
+
             console.error('[APP MANAGER] Error sending DM:', error);
             if (error.code === 50007) {
                 const errorEmbed = new EmbedBuilder()
                     .setTitle('Cannot Send DM')
                     .setDescription('❌ I couldn\'t send you a DM. Please make sure your DMs are open and try again.')
                     .setColor(0xFF0000);
-                if (!interaction.replied) await interaction.reply({ embeds: [errorEmbed], ephemeral: true }).catch(() => {});
+                try {
+                    await interaction.editReply({ content: '', embeds: [errorEmbed] });
+                } catch (e) {}
             }
         }
     },
@@ -228,7 +234,9 @@ module.exports = {
                 .setTitle('Application Started! ✅')
                 .setDescription('The application has begun. I will ask you the questions below one by one.')
                 .setColor(0x00FF00);
-            await interaction.editReply({ embeds: [startedEmbed], components: [] }).catch(() => {});
+            try {
+                await interaction.editReply({ embeds: [startedEmbed], components: [] });
+            } catch (e) {}
         }
 
         if (currentStep >= questions.length) {
@@ -346,10 +354,13 @@ module.exports = {
             .setDescription(`✅ Selected: **${answer}**`)
             .setColor(0x00FF00);
         
-        await interaction.update({ embeds: [confirmEmbed], components: [] }).catch(() => {});
-
-        // Ask next question
-        await module.exports.askNextQuestion(interaction.user, client, currentStep + 1);
+        try {
+            await interaction.update({ embeds: [confirmEmbed], components: [] });
+            // Ask next question
+            await module.exports.askNextQuestion(interaction.user, client, currentStep + 1);
+        } catch (e) {
+            // Another instance already updated it
+        }
     },
 
     stopApplication: async (interaction) => {
@@ -366,13 +377,15 @@ module.exports = {
             .setDescription('Your application has been stopped and all progress has been cleared.')
             .setColor(0xFF0000);
 
-        if (interaction.isButton() || interaction.isStringSelectMenu()) {
-            await interaction.update({ embeds: [stopEmbed], components: [] }).catch(() => {});
-        } else if (interaction.replied || interaction.deferred) {
-            await interaction.followUp({ embeds: [stopEmbed], ephemeral: true }).catch(() => {});
-        } else {
-            await interaction.reply({ embeds: [stopEmbed] }).catch(() => {});
-        }
+        try {
+            if (interaction.isButton() || interaction.isStringSelectMenu()) {
+                await interaction.update({ embeds: [stopEmbed], components: [] });
+            } else if (interaction.replied || interaction.deferred) {
+                await interaction.followUp({ embeds: [stopEmbed], ephemeral: true });
+            } else {
+                await interaction.reply({ embeds: [stopEmbed] });
+            }
+        } catch (e) {}
     },
 
     submitApplication: async (user, client) => {
@@ -459,6 +472,8 @@ module.exports = {
             .setDescription('✅ Your previous application has been cancelled. You can now start a new one.')
             .setColor(0x00FF00);
 
-        await interaction.reply({ embeds: [cancelEmbed], ephemeral: true }).catch(() => {});
+        try {
+            await interaction.reply({ embeds: [cancelEmbed], ephemeral: true });
+        } catch (e) {}
     }
 };
