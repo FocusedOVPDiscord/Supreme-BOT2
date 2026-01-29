@@ -107,18 +107,12 @@ module.exports = {
          * DETERMINISTIC INSTANCE SELECTION
          * Every interaction has a unique Snowflake ID. 
          * We use the last digit of that ID to decide which instance responds.
-         * Since each instance is "lucky" for different digits, only one will ever respond.
          */
         const interactionId = interaction.id;
         const lastDigit = parseInt(interactionId.slice(-1));
         
-        // Each instance claims a range of digits (0-9). 
-        // With 3 replicas, instance 1 might take 0-3, instance 2 takes 4-6, instance 3 takes 7-9.
-        // Since we don't know the count, we use a simple hash of the instance seed.
-        const instanceHash = Math.floor(INSTANCE_SEED * 10);
-        
-        // If the interaction's last digit doesn't match our hash-derived digit, we ignore it.
-        // This ensures that for ANY given interaction, only one instance handles it.
+        // Use a modulo based on a reasonable estimate of instances (e.g., 3)
+        // This ensures only one instance handles the interaction
         if (lastDigit % 3 !== Math.floor(INSTANCE_SEED * 3)) {
             return;
         }
