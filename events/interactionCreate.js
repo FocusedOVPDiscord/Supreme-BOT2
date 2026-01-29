@@ -192,6 +192,7 @@ module.exports = {
                 return await appManager.askNextQuestion(interaction.user, client, 0);
             }
             if (customId === 'cancel_mm_app_and_restart') return await appManager.cancelAndRestart(interaction);
+            if (customId === 'stop_mm_app') return await appManager.stopApplication(interaction);
 
             if (customId === 'close_ticket') {
                 const canClose = member.roles.cache.some(role => CONFIG.CAN_CLOSE_ROLES.includes(role.id));

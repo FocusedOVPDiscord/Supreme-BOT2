@@ -103,7 +103,11 @@ module.exports = {
                     new ButtonBuilder()
                         .setCustomId('confirm_start_mm_app')
                         .setLabel('Start Application')
-                        .setStyle(ButtonStyle.Success)
+                        .setStyle(ButtonStyle.Success),
+                    new ButtonBuilder()
+                        .setCustomId('stop_mm_app')
+                        .setLabel('Cancel')
+                        .setStyle(ButtonStyle.Secondary)
                 );
 
             const dmChannel = await interaction.user.createDM();
@@ -146,9 +150,17 @@ module.exports = {
             .setColor(0x00AAFF)
             .setFooter({ text: `Progress: ${currentStep + 1}/${questions.length}` });
 
+        const stopRow = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('stop_mm_app')
+                    .setLabel('Stop Application')
+                    .setStyle(ButtonStyle.Danger)
+            );
+
         try {
             const dmChannel = await user.createDM();
-            await dmChannel.send({ embeds: [questionEmbed] });
+            await dmChannel.send({ embeds: [questionEmbed], components: [stopRow] });
 
             // Update step
             apps[userId].step = currentStep;
@@ -160,13 +172,17 @@ module.exports = {
 
     handleDMResponse: async (message, client) => {
         if (message.author.bot) return;
-        if (!message.guild && message.channel.type === 1) { // DM channel
+        if (!message.guild && (message.channel.type === 1 || message.channel.type === 'DM')) { // DM channel
             const userId = message.author.id;
             const apps = loadApps();
 
             if (!apps[userId]) return; // No active application
 
             const currentStep = apps[userId].step;
+            
+            // Safety check for step index
+            if (currentStep < 0 || currentStep >= questions.length) return;
+
             const question = questions[currentStep];
             const answer = message.content.trim();
 
@@ -174,6 +190,13 @@ module.exports = {
             if (question.required === false && answer.toLowerCase() === 'skip') {
                 apps[userId].answers[question.id] = 'N/A';
             } else {
+                // If question is required and they type "skip", we might want to warn them
+                if (answer.toLowerCase() === 'skip' && question.required !== false) {
+                    const warnEmbed = new EmbedBuilder()
+                        .setDescription('⚠️ This question is required. Please provide an answer.')
+                        .setColor(0xFFAA00);
+                    return await message.reply({ embeds: [warnEmbed] });
+                }
                 apps[userId].answers[question.id] = answer;
             }
 
@@ -190,9 +213,33 @@ module.exports = {
         }
     },
 
+    stopApplication: async (interaction) => {
+        const userId = interaction.user.id;
+        const apps = loadApps();
+        
+        if (apps[userId]) {
+            delete apps[userId];
+            saveApps(apps);
+        }
+
+        const stopEmbed = new EmbedBuilder()
+            .setTitle('Application Stopped')
+            .setDescription('✅ Your application has been stopped and all progress has been cleared.')
+            .setColor(0xFF0000);
+
+        if (interaction.replied || interaction.deferred) {
+            await interaction.followUp({ embeds: [stopEmbed], ephemeral: true });
+        } else {
+            await interaction.reply({ embeds: [stopEmbed] });
+        }
+    },
+
     submitApplication: async (user, client) => {
         const apps = loadApps();
         const userId = user.id;
+        
+        if (!apps[userId]) return;
+
         const finalData = apps[userId].answers;
 
         delete apps[userId];
