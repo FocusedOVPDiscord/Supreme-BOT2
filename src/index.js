@@ -27,9 +27,15 @@ const client = new Client({
 client.commands = new Collection();
 const commandsData = [];
 
+console.log(`[DEBUG] Loading ${commandsList.length} commands...`);
 for (const command of commandsList) {
     client.commands.set(command.data.name, command);
     commandsData.push(command.data.toJSON());
+    console.log(`[DEBUG] Loaded command: ${command.data.name}`);
+}
+
+if (!process.env.DISCORD_TOKEN) {
+    console.error('❌ [ERROR] DISCORD_TOKEN is not defined in environment variables!');
 }
 
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
@@ -97,4 +103,10 @@ client.on(Events.MessageCreate, async message => {
     }
 });
 
-client.login(process.env.DISCORD_TOKEN);
+console.log('[DEBUG] Attempting Discord login...');
+client.login(process.env.DISCORD_TOKEN)
+    .then(() => console.log('🚀 [DEBUG] client.login() successful'))
+    .catch(err => {
+        console.error('❌ [ERROR] Discord login failed:');
+        console.error(err);
+    });
