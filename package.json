@@ -2,9 +2,9 @@
   "name": "supreme-bot-2",
   "version": "1.0.0",
   "description": "SUPREME BOT - Discord Bot running 24/7 on Koyeb",
-  "main": "src/index.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node src/index.js",
+    "start": "node index.js",
     "postinstall": "npm rebuild better-sqlite3",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
