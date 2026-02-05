@@ -15,12 +15,13 @@ require('dotenv').config();
 /* ===============================
    SAFETY CHECK: TOKEN
 ================================ */
-if (!process.env.TOKEN) {
-    console.error('❌ TOKEN environment variable is missing');
+const TOKEN = process.env.TOKEN || process.env.DISCORD_TOKEN;
+if (!TOKEN) {
+    console.error('❌ TOKEN or DISCORD_TOKEN environment variable is missing');
     process.exit(1);
 }
 
-console.log('[DEBUG] TOKEN detected, length:', process.env.TOKEN.length);
+console.log('[DEBUG] TOKEN detected, length:', TOKEN.length);
 
 /* ===============================
    INITIALIZE DATA
@@ -188,7 +189,7 @@ process.on('unhandledRejection', err => {
    LOGIN TO DISCORD (IMPORTANT)
 ================================ */
 console.log('[DEBUG] Attempting to login to Discord...');
-client.login(process.env.TOKEN)
+client.login(TOKEN)
     .then(() => console.log('[DEBUG] client.login() promise resolved'))
     .catch(err => {
         console.error('❌ Discord login failed:', err);
@@ -199,7 +200,7 @@ client.login(process.env.TOKEN)
    EXPRESS SERVER (OPTIONAL)
 ================================ */
 const app = express();
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 8000;
 
 app.get('/', (req, res) => {
     res.json({
