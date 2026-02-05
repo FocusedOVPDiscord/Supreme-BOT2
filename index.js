@@ -15,6 +15,7 @@ require('dotenv').config();
 /* ===============================
    SAFETY CHECK: TOKEN
 ================================ */
+// Support both TOKEN and DISCORD_TOKEN for flexibility
 const TOKEN = process.env.TOKEN || process.env.DISCORD_TOKEN;
 if (!TOKEN) {
     console.error('❌ TOKEN or DISCORD_TOKEN environment variable is missing');
@@ -34,8 +35,6 @@ const resetScript = path.join(__dirname, 'reset_limit.js');
 if (fs.existsSync(resetScript)) {
     try {
         require('./reset_limit.js');
-        // We don't delete it here to avoid issues with multiple restarts, 
-        // but it will ensure the user is cleared on the next boot.
     } catch (err) {
         console.error('[STARTUP] Error running reset script:', err);
     }
@@ -61,15 +60,14 @@ const client = new Client({
         Partials.GuildMember,
         Partials.ThreadMember
     ],
-    // Technical Improvement: Better memory handling via sweepers
     sweepers: {
         messages: {
-            interval: 3600, // Every hour
-            lifetime: 1800, // Remove messages older than 30 mins
+            interval: 3600, 
+            lifetime: 1800, 
         },
         users: {
             interval: 3600,
-            filter: () => user => user.id !== client.user.id, // Keep the bot user
+            filter: () => user => user.id !== client.user.id,
         }
     }
 });
@@ -87,7 +85,7 @@ client.once('ready', async () => {
     console.log(`✅ BOT ONLINE AS ${client.user.tag}`);
     console.log(`[DEBUG] Connected to ${client.guilds.cache.size} guilds`);
 
-    // Cache invites in background to avoid blocking
+    // Cache invites in background
     (async () => {
         console.log('[DEBUG] Starting invite cache...');
         for (const guild of client.guilds.cache.values()) {
@@ -148,7 +146,6 @@ if (fs.existsSync(eventsPath)) {
         const filePath = path.join(eventsPath, file);
         const event = require(filePath);
 
-        // Technical Improvement: Cleaner UI callbacks and error-safe execution
         const executeEvent = async (...args) => {
             try {
                 await event.execute(...args);
@@ -186,7 +183,7 @@ process.on('unhandledRejection', err => {
 });
 
 /* ===============================
-   LOGIN TO DISCORD (IMPORTANT)
+   LOGIN TO DISCORD
 ================================ */
 console.log('[DEBUG] Attempting to login to Discord...');
 client.login(TOKEN)
@@ -197,9 +194,10 @@ client.login(TOKEN)
     });
 
 /* ===============================
-   EXPRESS SERVER (OPTIONAL)
+   EXPRESS SERVER (KOYEB HEALTH CHECK)
 ================================ */
 const app = express();
+// Koyeb expects port 8000 for the health check
 const PORT = process.env.PORT || 8000;
 
 app.get('/', (req, res) => {
@@ -220,6 +218,6 @@ app.get('/health', (req, res) => {
     });
 });
 
-app.listen(PORT, () => {
-    console.log(`[INFO] Express server running on port ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 [HEALTH CHECK] Server running on port ${PORT}`);
 });

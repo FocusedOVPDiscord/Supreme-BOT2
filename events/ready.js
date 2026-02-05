@@ -1,4 +1,4 @@
-const { Events, REST, Routes, ActivityType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
+const { Events, REST, Routes, ActivityType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -6,10 +6,9 @@ module.exports = {
     name: Events.ClientReady,
     once: true,
     async execute(client) {
-        console.log(`Ready! Logged in as ${client.user.tag}`);
-        console.log('Exclusive Multi-Purpose Bot is online.');
+        console.log(`✅ Ready! Logged in as ${client.user.tag}`);
 
-        // Set the Bot Status immediately
+        // Set the Bot Status
         client.user.setActivity('Supreme | Market', { type: ActivityType.Listening });
 
         // Run background tasks to avoid blocking the ready event
@@ -56,28 +55,35 @@ module.exports = {
                 const commands = [];
                 const foldersPath = path.join(__dirname, '../commands');
                 
-                if (fs.existsSync(foldersPath)) {
-                    const commandFolders = fs.readdirSync(foldersPath);
-                    for (const folder of commandFolders) {
-                        const commandsPath = path.join(foldersPath, folder);
-                        if (fs.lstatSync(commandsPath).isDirectory()) {
-                            const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-                            for (const file of commandFiles) {
-                                const filePath = path.join(commandsPath, file);
-                                const command = require(filePath);
+                function findCommands(dir) {
+                    if (!fs.existsSync(dir)) return;
+                    const items = fs.readdirSync(dir);
+                    for (const item of items) {
+                        const itemPath = path.join(dir, item);
+                        const stat = fs.lstatSync(itemPath);
+                        if (stat.isDirectory()) {
+                            findCommands(itemPath);
+                        } else if (item.endsWith('.js')) {
+                            try {
+                                const command = require(itemPath);
                                 if ('data' in command && 'execute' in command) {
                                     commands.push(command.data.toJSON());
                                 }
+                            } catch (err) {
+                                console.error(`[ERROR] Failed to load command ${itemPath}:`, err.message);
                             }
                         }
                     }
                 }
 
-                const rest = new REST().setToken(process.env.TOKEN);
+                findCommands(foldersPath);
+
+                const TOKEN = process.env.TOKEN || process.env.DISCORD_TOKEN;
+                const rest = new REST().setToken(TOKEN);
                 const clientId = process.env.CLIENT_ID || client.user.id;
                 
                 if (!clientId) {
-                    console.error('[ERROR] CLIENT_ID is missing. Cannot register slash commands.');
+                    console.error('[ERROR] CLIENT_ID is missing and client.user.id is unavailable. Cannot register slash commands.');
                 } else {
                     console.log(`[INFO] Registering ${commands.length} slash commands for Client ID: ${clientId}`);
                     await rest.put(Routes.applicationCommands(clientId), { body: commands });

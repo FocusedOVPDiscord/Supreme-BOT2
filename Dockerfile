@@ -6,6 +6,7 @@ RUN npm install --production
 COPY . .
 RUN mkdir -p data
 ENV NODE_ENV=production
-ENV DB_PATH=/app/data/bot.db
+# Ensure the database is stored in the persistent /app/data directory
+ENV DATA_DIR=/app/data
 EXPOSE 8000
 CMD ["node", "index.js"]
