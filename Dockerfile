@@ -7,4 +7,5 @@ COPY . .
 RUN mkdir -p data
 ENV NODE_ENV=production
 ENV DB_PATH=/app/data/bot.db
+EXPOSE 8000
 CMD ["node", "src/index.js"]

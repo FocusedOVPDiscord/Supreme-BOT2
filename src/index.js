@@ -1,6 +1,17 @@
 require('dotenv').config();
+const http = require('http');
 const { Client, GatewayIntentBits, Collection, REST, Routes, Events } = require('discord.js');
 const db = require('./utils/database');
+
+// --- KOYEB HEALTH CHECK SERVER ---
+const PORT = process.env.PORT || 8000;
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'online', timestamp: new Date().toISOString() }));
+}).listen(PORT, () => {
+    console.log(`🚀 [HEALTH CHECK] Server listening on port ${PORT}`);
+});
+// ---------------------------------
 const ai = require('./utils/ai');
 const commandsList = require('./commands');
 
