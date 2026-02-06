@@ -7,10 +7,10 @@
 
 ## Fixes Implemented
 1. **Optimized Startup**: Removed the `guild.members.fetch()` call from the `ready` event in `index.js`. The bot now relies on lazy loading and gateway events to populate the member cache.
-2. **Efficient Dashboard API**: 
-   - Updated `/api/dashboard/users` to use the cache primarily.
-   - Reduced the threshold for fetching members and limited the fetch to 100 members at a time if the cache is empty.
-   - Added cache-first check in the OAuth callback for role verification.
+2. **Smarter Member Loading**: 
+   - Updated `/api/dashboard/users` to use a "chunked" loading strategy. Instead of downloading all members at once, it fetches small groups (200 members) only when the cache is empty or too small.
+   - This ensures the user list still loads in your dashboard without triggering Discord's "Global Rate Limit" block.
+   - Added cache-first check in the OAuth callback for role verification to speed up login.
 3. **Improved Error Handling**: Added specific handling for HTTP 429 errors in the OAuth callback to provide better feedback to the user.
 4. **Cache-First Verification**: The OAuth process now checks the local member cache first before making an API call to fetch member roles.
 

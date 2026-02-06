@@ -546,28 +546,25 @@ router.get('/users', requireStaff, async (req, res) => {
     
     try {
       if (search) {
-        // If searching, we use query to find specific members
-        const searchedMembers = await guild.members.search({ query: search, limit: 100 });
+        // Search Discord API directly for specific users
+        const searchedMembers = await guild.members.search({ query: search, limit: limit });
         membersArray = Array.from(searchedMembers.values());
       } else {
-        // Optimization: Use cache primarily for the dashboard to avoid rate limits
-        // Only fetch if cache is very low (less than 10% or empty)
-        if (guild.members.cache.size < guild.memberCount * 0.1 || guild.members.cache.size === 0) {
-          console.log(`[DASHBOARD] Cache significantly incomplete (${guild.members.cache.size}/${guild.memberCount}). Fetching for ${guild.name}...`);
+        // If cache is empty or very small, fetch a chunk of members
+        // This ensures the list is NOT empty while staying under rate limits
+        if (guild.members.cache.size < limit || (page === 1 && guild.members.cache.size < guild.memberCount * 0.05)) {
+          console.log(`[DASHBOARD] Fetching member chunk for ${guild.name} (Page: ${page})...`);
           try {
-            // Fetch with limit to avoid huge payload and rate limits
-            const fetchedMembers = await guild.members.fetch({ limit: 100 });
-            membersArray = Array.from(fetchedMembers.values());
+            // Fetch a limited number of members to populate the list
+            await guild.members.fetch({ limit: 200 }); 
           } catch (e) {
-            console.warn(`[DASHBOARD] Fetch failed, using cache: ${e.message}`);
-            membersArray = Array.from(guild.members.cache.values());
+            console.warn(`[DASHBOARD] Chunk fetch failed: ${e.message}`);
           }
-        } else {
-          membersArray = Array.from(guild.members.cache.values());
         }
+        membersArray = Array.from(guild.members.cache.values());
       }
     } catch (fetchError) {
-      console.error('[DASHBOARD] Member fetch error:', fetchError);
+      console.error('[DASHBOARD] Member list error:', fetchError);
       membersArray = Array.from(guild.members.cache.values());
     }
 
