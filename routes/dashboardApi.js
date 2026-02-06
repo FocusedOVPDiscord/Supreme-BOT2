@@ -181,9 +181,16 @@ router.post('/auth/callback', async (req, res) => {
 
     if (botGuild) {
       try {
-        const member = await botGuild.members.fetch(discordUser.id).catch(() => null);
-        if (member) {
-          userRoles = member.roles.cache.map(role => role.id);
+        // Try cache first to avoid API call
+        const cachedMember = botGuild.members.cache.get(discordUser.id);
+        if (cachedMember) {
+          userRoles = cachedMember.roles.cache.map(role => role.id);
+        } else {
+          // If not in cache, fetch with a timeout and handle rate limits
+          const member = await botGuild.members.fetch({ user: discordUser.id, force: false }).catch(() => null);
+          if (member) {
+            userRoles = member.roles.cache.map(role => role.id);
+          }
         }
       } catch (error) {
         console.error('Failed to fetch member roles:', error);
@@ -219,6 +226,17 @@ router.post('/auth/callback', async (req, res) => {
     res.json({ success: true, user: req.session.user });
   } catch (error) {
     console.error('OAuth error:', error.response?.data || error.message);
+    
+    // Check if it's a Discord rate limit error
+    if (error.response?.status === 429) {
+      const retryAfter = error.response.headers['retry-after'] || 5;
+      return res.status(429).json({ 
+        error: 'Discord API rate limit exceeded', 
+        message: 'You are being blocked from accessing Discord API temporarily. Please try again in a few minutes.',
+        retryAfter: parseInt(retryAfter)
+      });
+    }
+    
     res.status(500).json({ error: 'Authentication failed' });
   }
 });
@@ -532,12 +550,13 @@ router.get('/users', requireStaff, async (req, res) => {
         const searchedMembers = await guild.members.search({ query: search, limit: 100 });
         membersArray = Array.from(searchedMembers.values());
       } else {
-        // If cache is significantly smaller than actual member count, force a fetch
-        // but catch rate limits to avoid crashing
-        if (guild.members.cache.size < guild.memberCount * 0.8) {
-          console.log(`[DASHBOARD] Cache incomplete (${guild.members.cache.size}/${guild.memberCount}). Fetching for ${guild.name}...`);
+        // Optimization: Use cache primarily for the dashboard to avoid rate limits
+        // Only fetch if cache is very low (less than 10% or empty)
+        if (guild.members.cache.size < guild.memberCount * 0.1 || guild.members.cache.size === 0) {
+          console.log(`[DASHBOARD] Cache significantly incomplete (${guild.members.cache.size}/${guild.memberCount}). Fetching for ${guild.name}...`);
           try {
-            const fetchedMembers = await guild.members.fetch({ time: 10000 }); // 10s timeout
+            // Fetch with limit to avoid huge payload and rate limits
+            const fetchedMembers = await guild.members.fetch({ limit: 100 });
             membersArray = Array.from(fetchedMembers.values());
           } catch (e) {
             console.warn(`[DASHBOARD] Fetch failed, using cache: ${e.message}`);

@@ -104,11 +104,9 @@ client.once('ready', async () => {
                 client.invites.set(guild.id, new Map(invites.map(inv => [inv.code, inv.uses])));
                 console.log(`📦 [CACHE] Loaded ${invites.size} invites for ${guild.name}`);
 
-                // Fetch all members to populate cache for the dashboard
-                // We do this in the background to not block the bot
-                console.log(`👥 [CACHE] Fetching members for ${guild.name} (${guild.memberCount} total)...`);
-                await guild.members.fetch();
-                console.log(`✅ [CACHE] Successfully cached ${guild.members.cache.size} members for ${guild.name}`);
+                // Optimization: Don't fetch all members on startup to avoid rate limits
+                // The dashboard will handle fetching if the cache is empty
+                console.log(`👥 [CACHE] Skip full member fetch for ${guild.name} to avoid rate limits. Cache size: ${guild.members.cache.size}`);
             } catch (err) {
                 console.warn(`⚠️ [CACHE] Could not fetch data for ${guild.name}: ${err.message}`);
             }
