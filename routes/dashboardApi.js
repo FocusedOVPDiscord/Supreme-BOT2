@@ -532,13 +532,17 @@ router.get('/users', requireStaff, async (req, res) => {
         const searchedMembers = await guild.members.search({ query: search, limit: 100 });
         membersArray = Array.from(searchedMembers.values());
       } else {
-        // Use cache by default to avoid Gateway rate limits (Opcode 8)
-        // Only fetch if cache is absolutely empty
-        if (guild.members.cache.size === 0 && guild.memberCount > 0) {
-          console.log(`[DASHBOARD] Cache empty. Fetching members for ${guild.name}...`);
-          // Use a smaller fetch or just rely on what we can get to avoid rate limits
-          const fetchedMembers = await guild.members.fetch({ limit: 1000 }).catch(() => guild.members.cache);
-          membersArray = Array.from(fetchedMembers.values());
+        // If cache is significantly smaller than actual member count, force a fetch
+        // but catch rate limits to avoid crashing
+        if (guild.members.cache.size < guild.memberCount * 0.8) {
+          console.log(`[DASHBOARD] Cache incomplete (${guild.members.cache.size}/${guild.memberCount}). Fetching for ${guild.name}...`);
+          try {
+            const fetchedMembers = await guild.members.fetch({ time: 10000 }); // 10s timeout
+            membersArray = Array.from(fetchedMembers.values());
+          } catch (e) {
+            console.warn(`[DASHBOARD] Fetch failed, using cache: ${e.message}`);
+            membersArray = Array.from(guild.members.cache.values());
+          }
         } else {
           membersArray = Array.from(guild.members.cache.values());
         }

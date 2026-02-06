@@ -95,15 +95,22 @@ client.once('ready', async () => {
     console.log(`✅ [BOT] Online as ${client.user.tag}`);
     console.log(`📡 [BOT] Monitoring ${client.guilds.cache.size} guilds`);
     
-    // Cache invites safely
+    // Cache invites and members safely
     (async () => {
         for (const guild of client.guilds.cache.values()) {
             try {
+                // Fetch invites
                 const invites = await guild.invites.fetch();
                 client.invites.set(guild.id, new Map(invites.map(inv => [inv.code, inv.uses])));
                 console.log(`📦 [CACHE] Loaded ${invites.size} invites for ${guild.name}`);
+
+                // Fetch all members to populate cache for the dashboard
+                // We do this in the background to not block the bot
+                console.log(`👥 [CACHE] Fetching members for ${guild.name} (${guild.memberCount} total)...`);
+                await guild.members.fetch();
+                console.log(`✅ [CACHE] Successfully cached ${guild.members.cache.size} members for ${guild.name}`);
             } catch (err) {
-                console.warn(`⚠️ [CACHE] Could not fetch invites for ${guild.name}: ${err.message}`);
+                console.warn(`⚠️ [CACHE] Could not fetch data for ${guild.name}: ${err.message}`);
             }
         }
     })();
