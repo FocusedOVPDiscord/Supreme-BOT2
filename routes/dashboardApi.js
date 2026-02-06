@@ -524,17 +524,32 @@ router.get('/users', requireStaff, async (req, res) => {
     const limit = parseInt(req.query.limit) || 40;
     const search = req.query.search || '';
     
-    let members;
-    if (search) {
-      // If searching, we use query to find specific members
-      members = await guild.members.search({ query: search, limit: 100 });
-    } else {
-      // Otherwise fetch all (cached) and paginate
-      members = await guild.members.fetch();
+    let membersArray = [];
+    
+    try {
+      if (search) {
+        // If searching, we use query to find specific members
+        const searchedMembers = await guild.members.search({ query: search, limit: 100 });
+        membersArray = Array.from(searchedMembers.values());
+      } else {
+        // Force a fetch if the cache is empty or small, otherwise use cache
+        // This handles cases where the bot hasn't cached members yet
+        if (guild.memberCount > 0 && guild.members.cache.size < guild.memberCount * 0.9) {
+          console.log(`[DASHBOARD] Cache incomplete (${guild.members.cache.size}/${guild.memberCount}). Fetching all members...`);
+          const fetchedMembers = await guild.members.fetch();
+          membersArray = Array.from(fetchedMembers.values());
+        } else {
+          membersArray = Array.from(guild.members.cache.values());
+        }
+      }
+    } catch (fetchError) {
+      console.error('[DASHBOARD] Member fetch error:', fetchError);
+      // Fallback to cache if fetch fails
+      membersArray = Array.from(guild.members.cache.values());
     }
 
-    // Convert to array and sort by join date (newest first)
-    let membersArray = Array.from(members.values()).sort((a, b) => b.joinedTimestamp - a.joinedTimestamp);
+    // Sort by join date (newest first)
+    membersArray.sort((a, b) => (b.joinedTimestamp || 0) - (a.joinedTimestamp || 0));
 
     const total = membersArray.length;
     const totalPages = Math.ceil(total / limit);
