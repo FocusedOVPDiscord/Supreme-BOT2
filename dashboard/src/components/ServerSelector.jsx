@@ -4,6 +4,7 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
   const [guilds, setGuilds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
+  const [hasAutoSelected, setHasAutoSelected] = useState(false);
 
   useEffect(() => {
     const fetchGuilds = async () => {
@@ -15,9 +16,10 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
           const data = await response.json();
           setGuilds(data);
           
-          // If no guild is selected, select the first one (without page refresh)
-          if (!selectedGuild && data.length > 0) {
-            handleSelectGuild(data[0], true);
+          // Only auto-select if no guild is selected AND we haven't auto-selected before
+          if (!selectedGuild && data.length > 0 && !hasAutoSelected) {
+            await handleSelectGuild(data[0], true);
+            setHasAutoSelected(true);
           }
         }
       } catch (error) {
@@ -28,7 +30,7 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
     };
 
     fetchGuilds();
-  }, []);
+  }, [selectedGuild, hasAutoSelected]);
 
   const handleSelectGuild = async (guild, isAutoSelect = false) => {
     try {
@@ -40,10 +42,8 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
       });
 
       if (response.ok) {
-        // Only refresh page if user manually selected, not on auto-select
-        if (!isAutoSelect) {
-          onGuildChange(guild);
-        }
+        // Call onGuildChange to update parent state without page refresh
+        onGuildChange(guild);
         setIsOpen(false);
       }
     } catch (error) {
@@ -52,12 +52,6 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
   };
 
   if (loading || guilds.length === 0) {
-    return null;
-  }
-
-  // If only one guild, don't show selector
-  if (guilds.length === 1 && !selectedGuild) {
-    handleSelectGuild(guilds[0]);
     return null;
   }
 

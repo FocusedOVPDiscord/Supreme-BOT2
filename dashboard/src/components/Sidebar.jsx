@@ -9,8 +9,9 @@ export default function Sidebar({ user, setIsAuthenticated }) {
 
   const handleGuildChange = (guild) => {
     setSelectedGuild(guild);
-    // Trigger a page refresh to reload data for the new guild
-    window.location.reload();
+    // Instead of reloading the entire page, just update the state
+    // The dashboard components will re-fetch data when needed
+    console.log(`🔄 Guild changed to: ${guild.name}`);
   };
 
   const handleLogout = async () => {
