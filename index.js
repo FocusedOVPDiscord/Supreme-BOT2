@@ -9,20 +9,18 @@ const {
 const fs = require('node:fs');
 const path = require('node:path');
 const express = require('express');
+const axios = require('axios');
 const { initializeDataDirectory } = require('./dataInit');
 require('dotenv').config();
 
 /* ===============================
    SAFETY CHECK: TOKEN
 ================================ */
-// Support both TOKEN and DISCORD_TOKEN for flexibility
 const TOKEN = process.env.TOKEN || process.env.DISCORD_TOKEN;
 if (!TOKEN) {
     console.error('❌ TOKEN or DISCORD_TOKEN environment variable is missing');
     process.exit(1);
 }
-
-console.log('[DEBUG] TOKEN detected, length:', TOKEN.length);
 
 /* ===============================
    INITIALIZE DATA
@@ -30,7 +28,6 @@ console.log('[DEBUG] TOKEN detected, length:', TOKEN.length);
 console.log('[STARTUP] Initializing data directory...');
 initializeDataDirectory();
 
-// Run reset script if it exists
 const resetScript = path.join(__dirname, 'reset_limit.js');
 if (fs.existsSync(resetScript)) {
     try {
@@ -72,93 +69,59 @@ const client = new Client({
     }
 });
 
-/* ===============================
-   CACHES
-================================ */
 client.invites = new Map();
 client.commands = new Collection();
 
 /* ===============================
-   READY EVENT (CRITICAL)
+   READY EVENT
 ================================ */
 client.once('ready', async () => {
     console.log(`✅ BOT ONLINE AS ${client.user.tag}`);
-    console.log(`[DEBUG] Connected to ${client.guilds.cache.size} guilds`);
-
-    // Cache invites in background
+    
+    // Cache invites
     (async () => {
-        console.log('[DEBUG] Starting invite cache...');
         for (const guild of client.guilds.cache.values()) {
             try {
                 const invites = await guild.invites.fetch();
-                client.invites.set(
-                    guild.id,
-                    new Map(invites.map(inv => [inv.code, inv.uses]))
-                );
-                console.log(`[DEBUG] Cached ${invites.size} invites for ${guild.name}`);
-            } catch (err) {
-                console.warn(`[WARN] Could not fetch invites for ${guild.name}: ${err.message}`);
-            }
+                client.invites.set(guild.id, new Map(invites.map(inv => [inv.code, inv.uses])));
+            } catch (err) {}
         }
-        console.log('[DEBUG] Invite cache complete.');
     })();
 });
 
 /* ===============================
-   COMMAND HANDLER
+   COMMAND & EVENT HANDLERS
 ================================ */
 const foldersPath = path.join(__dirname, 'commands');
-
 function loadCommands(dir) {
     if (!fs.existsSync(dir)) return;
-
     const items = fs.readdirSync(dir);
     for (const item of items) {
         const itemPath = path.join(dir, item);
         const stat = fs.statSync(itemPath);
-
         if (stat.isDirectory()) {
             loadCommands(itemPath);
         } else if (item.endsWith('.js')) {
             try {
                 const command = require(itemPath);
-                if (command.data && command.execute) {
-                    client.commands.set(command.data.name, command);
-                    console.log(`[SUCCESS] Loaded command: ${command.data.name}`);
-                }
-            } catch (err) {
-                console.error(`[ERROR] Failed loading command ${itemPath}`, err);
-            }
+                if (command.data && command.execute) client.commands.set(command.data.name, command);
+            } catch (err) {}
         }
     }
 }
-
 loadCommands(foldersPath);
 
-/* ===============================
-   EVENT HANDLER
-================================ */
 const eventsPath = path.join(__dirname, 'events');
 if (fs.existsSync(eventsPath)) {
     const eventFiles = fs.readdirSync(eventsPath).filter(f => f.endsWith('.js'));
-
     for (const file of eventFiles) {
         const filePath = path.join(eventsPath, file);
         const event = require(filePath);
-
         const executeEvent = async (...args) => {
-            try {
-                await event.execute(...args);
-            } catch (error) {
-                console.error(`[EVENT ERROR] Error in event ${event.name}:`, error);
-            }
+            try { await event.execute(...args); } catch (error) { console.error(`[EVENT ERROR] ${event.name}:`, error); }
         };
-
-        if (event.once) {
-            client.once(event.name, executeEvent);
-        } else {
-            client.on(event.name, executeEvent);
-        }
+        if (event.once) client.once(event.name, executeEvent);
+        else client.on(event.name, executeEvent);
     }
 }
 
@@ -183,21 +146,17 @@ process.on('unhandledRejection', err => {
 });
 
 /* ===============================
-   LOGIN TO DISCORD
+   LOGIN
 ================================ */
-console.log('[DEBUG] Attempting to login to Discord...');
-client.login(TOKEN)
-    .then(() => console.log('[DEBUG] client.login() promise resolved'))
-    .catch(err => {
-        console.error('❌ Discord login failed:', err);
-        process.exit(1);
-    });
+client.login(TOKEN).catch(err => {
+    console.error('❌ Discord login failed:', err);
+    process.exit(1);
+});
 
 /* ===============================
-   EXPRESS SERVER (KOYEB HEALTH CHECK)
+   EXPRESS SERVER & KEEP-ALIVE
 ================================ */
 const app = express();
-// Koyeb expects port 8000 for the health check
 const PORT = process.env.PORT || 8000;
 
 app.get('/', (req, res) => {
@@ -210,14 +169,27 @@ app.get('/', (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-    res.json({
-        status: 'healthy',
-        discord: client.user ? 'connected' : 'disconnected',
-        guilds: client.guilds.cache.size,
-        uptime: process.uptime()
-    });
+    res.status(200).json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 [HEALTH CHECK] Server running on port ${PORT}`);
+    console.log(`🚀 [SERVER] Running on port ${PORT}`);
+    
+    // --- SELF-PING MECHANISM ---
+    // If you provide KOYEB_PUBLIC_URL in your environment variables, 
+    // the bot will ping itself every 5 minutes to stay awake.
+    const PUBLIC_URL = process.env.KOYEB_PUBLIC_URL || process.env.PUBLIC_URL;
+    if (PUBLIC_URL) {
+        console.log(`🔗 [KEEP-ALIVE] Self-ping enabled for: ${PUBLIC_URL}`);
+        setInterval(async () => {
+            try {
+                await axios.get(PUBLIC_URL);
+                console.log('💓 [KEEP-ALIVE] Self-ping successful');
+            } catch (err) {
+                console.error('💔 [KEEP-ALIVE] Self-ping failed:', err.message);
+            }
+        }, 300000); // Every 5 minutes
+    } else {
+        console.log('⚠️ [KEEP-ALIVE] KOYEB_PUBLIC_URL not set. Self-ping disabled.');
+    }
 });
