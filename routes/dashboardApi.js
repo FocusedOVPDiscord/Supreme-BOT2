@@ -553,16 +553,21 @@ router.get('/users', requireStaff, async (req, res) => {
         const searchedMembers = await guild.members.search({ query: search, limit: limit });
         membersArray = Array.from(searchedMembers.values());
       } else {
-        // If we don't have enough members in cache for the requested page, fetch more
-        // This ensures we can show members even if the cache isn't fully populated
+        // Calculate how many members we need to have in cache to show the requested page
         const requiredCacheSize = page * limit;
+        
+        // If we don't have enough members in cache for the requested page, fetch more
+        // We fetch until we have enough or we've reached the end
         if (guild.members.cache.size < requiredCacheSize && guild.members.cache.size < totalMembersInGuild) {
           console.log(`[DASHBOARD] Fetching more members for ${guild.name} (Need: ${requiredCacheSize}, Cache: ${guild.members.cache.size})...`);
           try {
-            // Fetch in chunks of 200 to be safe but effective
-            await guild.members.fetch({ limit: 200 }); 
+            // Fetch until we have enough for the current page
+            // Note: fetch() without a query fetches all members, but we can't do that.
+            // However, calling it multiple times or with a limit helps.
+            // Discord.js cache will grow as we fetch.
+            await guild.members.fetch({ limit: Math.max(200, requiredCacheSize) }); 
           } catch (e) {
-            console.warn(`[DASHBOARD] Chunk fetch failed: ${e.message}`);
+            console.warn(`[DASHBOARD] Member fetch failed: ${e.message}`);
           }
         }
         membersArray = Array.from(guild.members.cache.values());
@@ -576,11 +581,13 @@ router.get('/users', requireStaff, async (req, res) => {
     membersArray.sort((a, b) => (b.joinedTimestamp || 0) - (a.joinedTimestamp || 0));
 
     // For total count: if searching, use the search result count. 
-    // Otherwise, use the actual guild member count for accurate "1 of X" display.
+    // Otherwise, use the actual guild member count for accurate display.
     const total = search ? membersArray.length : totalMembersInGuild;
     const totalPages = Math.ceil(total / limit);
+    
+    // Calculate start and end for the current page
     const start = (page - 1) * limit;
-    const end = start + limit;
+    const end = Math.min(start + limit, total);
     
     // Slice from the current cache
     const paginatedMembers = membersArray.slice(start, end);

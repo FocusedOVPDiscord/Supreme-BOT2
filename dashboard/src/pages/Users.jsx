@@ -183,7 +183,7 @@ export default function Users() {
         {/* Pagination Controls */}
         <div className="px-8 py-5 bg-white/5 border-t border-white/5 flex items-center justify-between">
           <p className="text-sm text-slate-500">
-            Showing <span className="text-white font-bold">{users.length}</span> of <span className="text-white font-bold">{pagination.total}</span> members
+            Showing <span className="text-white font-bold">{Math.min((pagination.page - 1) * 40 + 1, pagination.total)} - {Math.min(pagination.page * 40, pagination.total)}</span> of <span className="text-white font-bold">{pagination.total}</span> members
           </p>
           <div className="flex items-center gap-2">
             <button 
