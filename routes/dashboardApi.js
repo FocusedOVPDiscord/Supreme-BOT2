@@ -6,6 +6,7 @@ const inviteManager = require('../inviteManager.js');
 const fs = require('fs');
 const path = require('path');
 const { getPath } = require('../pathConfig');
+const { saveTranscriptToDashboard, formatMessagesForDashboard } = require('../utils/dashboardTranscript');
 
 const TRANSCRIPTS_FILE = getPath('transcripts.json');
 
@@ -18,21 +19,6 @@ function loadTranscripts() {
     console.error('Error loading transcripts:', error);
   }
   return {};
-}
-
-function saveTranscript(guildId, ticketId, data) {
-  try {
-    const transcripts = loadTranscripts();
-    if (!transcripts[guildId]) transcripts[guildId] = [];
-    transcripts[guildId].push({
-      id: ticketId,
-      closedAt: Date.now(),
-      ...data
-    });
-    fs.writeFileSync(TRANSCRIPTS_FILE, JSON.stringify(transcripts, null, 2));
-  } catch (error) {
-    console.error('Error saving transcript:', error);
-  }
 }
 
 // Configuration
@@ -441,15 +427,10 @@ router.delete('/tickets/:id', requireStaff, async (req, res) => {
 
     // Save transcript before deleting
     const messages = await channel.messages.fetch({ limit: 100 });
-    const formattedMessages = messages.map(m => ({
-      author: m.author.username,
-      content: m.content,
-      timestamp: m.createdTimestamp
-    })).reverse();
-
-    saveTranscript(guild.id, channel.id, {
+    
+    saveTranscriptToDashboard(guild.id, channel.id, {
       user: channel.name.replace('ticket-', ''),
-      messages: formattedMessages
+      messages: formatMessagesForDashboard(messages)
     });
 
     await channel.delete();

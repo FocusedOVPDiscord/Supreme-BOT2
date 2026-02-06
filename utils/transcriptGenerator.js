@@ -1,6 +1,7 @@
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const { saveTranscriptToDashboard, formatMessagesForDashboard } = require('./dashboardTranscript');
 
 const TRANSCRIPT_CHANNEL_ID = '1464802432155652168';
 
@@ -139,6 +140,16 @@ async function generateAndSendTranscript(channel, closedBy, ticketData = {}) {
             embeds: [embed],
             files: [attachment]
         });
+
+        // ALSO SAVE TO DASHBOARD
+        try {
+            saveTranscriptToDashboard(guild.id, channel.id, {
+                user: channel.name.replace('ticket-', ''),
+                messages: formatMessagesForDashboard(messages)
+            });
+        } catch (dbError) {
+            console.error('[TRANSCRIPT] Failed to save to dashboard:', dbError);
+        }
 
         console.log(`[TRANSCRIPT] Successfully generated transcript for ticket #${ticketNumber}`);
         return true;
