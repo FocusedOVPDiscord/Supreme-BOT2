@@ -1,5 +1,6 @@
 const express = require('express');
 const axios = require('axios');
+const { EmbedBuilder } = require('discord.js');
 const router = express.Router();
 const storage = require('../commands/utility/storage.js');
 const inviteManager = require('../inviteManager.js');
@@ -451,6 +452,62 @@ router.get('/transcripts', requireStaff, async (req, res) => {
     const transcripts = loadTranscripts();
     res.json(transcripts[guild.id] || []);
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/dashboard/users/:id/moderate
+ */
+router.post('/users/:id/moderate', requireStaff, async (req, res) => {
+  try {
+    const guild = getSelectedGuild(req);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+
+    const { action, reason } = req.body;
+    const targetId = req.params.id;
+    const member = await guild.members.fetch(targetId).catch(() => null);
+
+    if (!member && action !== 'ban') {
+      return res.status(404).json({ error: 'Member not found in server' });
+    }
+
+    const moderator = req.session.user.username;
+
+    switch (action) {
+      case 'ban':
+        await guild.members.ban(targetId, { reason: `Moderator: ${moderator} | Reason: ${reason}` });
+        break;
+      case 'kick':
+        await member.kick(`Moderator: ${moderator} | Reason: ${reason}`);
+        break;
+      case 'mute':
+        // Mute for 24 hours by default if no duration
+        await member.timeout(24 * 60 * 60 * 1000, `Moderator: ${moderator} | Reason: ${reason}`);
+        break;
+      case 'warn':
+        const warnEmbed = new EmbedBuilder()
+          .setTitle('⚠️ Professional Warning')
+          .setDescription(`You have received a warning in **${guild.name}**.`)
+          .addFields(
+            { name: 'Reason', value: reason || 'No reason provided' },
+            { name: 'Moderator', value: moderator }
+          )
+          .setColor('#FFA500')
+          .setTimestamp()
+          .setFooter({ text: 'Supreme Management System' });
+        
+        await member.send({ embeds: [warnEmbed] }).catch(() => {
+          throw new Error('Could not send DM to user, but warning logged.');
+        });
+        break;
+      default:
+        return res.status(400).json({ error: 'Invalid action' });
+    }
+
+    res.json({ success: true, message: `User ${action}ned successfully` });
+  } catch (error) {
+    console.error(`Moderation error (${req.body.action}):`, error);
     res.status(500).json({ error: error.message });
   }
 });
