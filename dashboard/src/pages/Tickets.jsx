@@ -6,8 +6,10 @@ export default function Tickets() {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [messages, setMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
-  useEffect(() => {
+  const fetchTickets = () => {
+    setLoading(true);
     fetch('/api/dashboard/tickets', { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
@@ -15,6 +17,10 @@ export default function Tickets() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchTickets();
   }, []);
 
   const viewChat = async (ticket) => {
@@ -31,6 +37,29 @@ export default function Tickets() {
       console.error('Failed to fetch messages:', error);
     } finally {
       setLoadingMessages(false);
+    }
+  };
+
+  const deleteTicket = async (ticketId) => {
+    if (!confirm('Are you sure you want to delete this ticket? This will delete the channel from Discord.')) return;
+    
+    setDeletingId(ticketId);
+    try {
+      const response = await fetch(`/api/dashboard/tickets/${ticketId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        setTickets(tickets.filter(t => t.id !== ticketId));
+      } else {
+        alert('Failed to delete ticket.');
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('An error occurred while deleting the ticket.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -63,8 +92,16 @@ export default function Tickets() {
               >
                 View Chat
               </button>
-              <button className="px-4 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              <button 
+                onClick={() => deleteTicket(ticket.id)}
+                disabled={deletingId === ticket.id}
+                className={`px-4 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all ${deletingId === ticket.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {deletingId === ticket.id ? (
+                  <div className="w-5 h-5 border-2 border-red-400 border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                )}
               </button>
             </div>
           </div>

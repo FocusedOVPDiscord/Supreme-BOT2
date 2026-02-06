@@ -315,7 +315,7 @@ router.get('/stats', requireAuth, async (req, res) => {
     const guild = getSelectedGuild(req);
     if (!guild) return res.status(500).json({ error: 'Bot not in guild' });
 
-    const ticketCategoryId = '1458907554573844715';
+    const ticketCategoryId = storage.get(guild.id, 'ticketCategoryId') || '1458907554573844715';
     const activeTickets = guild.channels.cache.filter(c => c.parentId === ticketCategoryId).size;
     const allGiveaways = storage.get(guild.id, 'all_giveaways') || [];
 
@@ -325,7 +325,7 @@ router.get('/stats', requireAuth, async (req, res) => {
       totalTrades: allGiveaways.length,
       uptime: Math.floor(process.uptime()),
       serverName: guild.name,
-      channels: guild.channels.cache.size,
+      channels: guild.channels.cache.filter(c => c.type !== 4).size, // Exclude categories
       roles: guild.roles.cache.size,
       botStatus: 'Online',
       recentTickets: guild.channels.cache
@@ -388,6 +388,24 @@ router.get('/tickets/:id/messages', requireStaff, async (req, res) => {
     })).reverse();
 
     res.json(formattedMessages);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/dashboard/tickets/:id
+ */
+router.delete('/tickets/:id', requireStaff, async (req, res) => {
+  try {
+    const guild = getSelectedGuild(req);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+
+    const channel = guild.channels.cache.get(req.params.id);
+    if (!channel) return res.status(404).json({ error: 'Ticket not found' });
+
+    await channel.delete();
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

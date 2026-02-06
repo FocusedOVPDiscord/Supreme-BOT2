@@ -14,10 +14,6 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
         if (response.ok) {
           const data = await response.json();
           setGuilds(data);
-          
-          // AUTO-SELECTION REMOVED: 
-          // We no longer automatically call handleSelectGuild here.
-          // The user must manually select a guild from the dropdown.
         }
       } catch (error) {
         console.error('Failed to fetch guilds:', error);
@@ -27,7 +23,7 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
     };
 
     fetchGuilds();
-  }, []); // Only fetch guilds once on mount
+  }, []);
 
   const handleSelectGuild = async (guild) => {
     try {
@@ -39,7 +35,6 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
       });
 
       if (response.ok) {
-        // Update parent state with the selected guild
         onGuildChange(guild);
         setIsOpen(false);
       }
@@ -57,7 +52,6 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
     );
   }
 
-  // If no guilds available, show a message
   if (guilds.length === 0) {
     return (
       <div className="px-4 py-3 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold">
@@ -66,7 +60,7 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
     );
   }
 
-  // If no guild is selected yet, show a placeholder
+  // Use the selectedGuild passed from parent
   const currentGuild = selectedGuild;
 
   return (
@@ -75,8 +69,8 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
         onClick={() => setIsOpen(!isOpen)}
         className={`flex items-center gap-3 w-full px-4 py-3 rounded-2xl transition-all group border ${
           currentGuild 
-            ? 'bg-white/5 hover:bg-white/10 border-white/10' 
-            : 'bg-indigo-600/10 hover:bg-indigo-600/20 border-indigo-500/30 shadow-lg shadow-indigo-500/10'
+            ? 'bg-indigo-600/10 border-indigo-500/30 shadow-lg shadow-indigo-500/10' 
+            : 'bg-white/5 hover:bg-white/10 border-white/10'
         }`}
       >
         {currentGuild ? (
@@ -156,7 +150,6 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
         </div>
       )}
 
-      {/* Click outside to close */}
       {isOpen && (
         <div
           className="fixed inset-0 z-40"

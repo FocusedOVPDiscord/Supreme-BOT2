@@ -1,25 +1,44 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ServerSelector from './ServerSelector';
 
 export default function Sidebar({ user, setIsAuthenticated }) {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(true);
-  const [selectedGuild, setSelectedGuild] = useState(null);
+  const [selectedGuild, setSelectedGuild] = useState(() => {
+    // Try to restore selected guild from localStorage on initial load
+    const saved = localStorage.getItem('selectedGuild');
+    return saved ? JSON.parse(saved) : null;
+  });
 
   const handleGuildChange = (guild) => {
     setSelectedGuild(guild);
+    // Persist to localStorage so it survives the reload
+    localStorage.setItem('selectedGuild', JSON.stringify(guild));
     // When the user manually selects a guild, we reload the page to refresh all data
-    // This is safe now because we've removed the auto-selection logic that caused the loop
     window.location.reload();
   };
 
   const handleLogout = async () => {
-    await fetch('/api/dashboard/auth/logout', {
-      method: 'POST',
-      credentials: 'include',
-    });
-    setIsAuthenticated(false);
+    try {
+      const response = await fetch('/api/dashboard/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ removeTrustedIP: true }) // Ensure full logout
+      });
+      
+      if (response.ok) {
+        localStorage.removeItem('selectedGuild'); // Clear saved guild on logout
+        setIsAuthenticated(false);
+        // Force redirect to login
+        window.location.href = '/dashboard/login';
+      }
+    } catch (error) {
+      console.error('Logout failed:', error);
+      // Fallback: still try to update UI
+      setIsAuthenticated(false);
+    }
   };
 
   const menuItems = [
