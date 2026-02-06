@@ -15,9 +15,9 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
           const data = await response.json();
           setGuilds(data);
           
-          // If no guild is selected, select the first one
+          // If no guild is selected, select the first one (without page refresh)
           if (!selectedGuild && data.length > 0) {
-            handleSelectGuild(data[0]);
+            handleSelectGuild(data[0], true);
           }
         }
       } catch (error) {
@@ -30,7 +30,7 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
     fetchGuilds();
   }, []);
 
-  const handleSelectGuild = async (guild) => {
+  const handleSelectGuild = async (guild, isAutoSelect = false) => {
     try {
       const response = await fetch('/api/dashboard/select-guild', {
         method: 'POST',
@@ -40,7 +40,10 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
       });
 
       if (response.ok) {
-        onGuildChange(guild);
+        // Only refresh page if user manually selected, not on auto-select
+        if (!isAutoSelect) {
+          onGuildChange(guild);
+        }
         setIsOpen(false);
       }
     } catch (error) {

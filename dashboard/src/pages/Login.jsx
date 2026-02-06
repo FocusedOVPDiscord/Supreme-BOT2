@@ -2,6 +2,29 @@ import { useEffect } from 'react';
 
 export default function Login({ setIsAuthenticated, setUser }) {
   useEffect(() => {
+    // Check if already authenticated and redirect to dashboard
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/dashboard/auth/me', {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
+          setIsAuthenticated(true);
+          // Redirect to dashboard
+          window.location.href = '/dashboard';
+          return;
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+      }
+    };
+
+    checkAuth();
+  }, [setIsAuthenticated, setUser]);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
 
