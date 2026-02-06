@@ -20,14 +20,18 @@ export default function Users() {
     u.id.includes(searchTerm)
   );
 
-  if (loading) return <div className="p-8 text-white">Loading users...</div>;
+  if (loading) return (
+    <div className="flex items-center justify-center h-full">
+      <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+    </div>
+  );
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-700">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-4xl font-black text-white tracking-tight">User <span className="gradient-text">Management</span></h1>
-          <p className="text-slate-400 mt-1">Monitor community members and invite statistics.</p>
+          <p className="text-slate-400 mt-1">Monitor community members and invite statistics ({users.length} total).</p>
         </div>
         <div className="relative">
           <input 
@@ -42,41 +46,62 @@ export default function Users() {
       </header>
 
       <div className="glass rounded-3xl overflow-hidden border border-white/5">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-white/5 text-slate-400 text-xs font-bold uppercase tracking-wider">
-              <th className="px-8 py-5">User</th>
-              <th className="px-8 py-5">Discord ID</th>
-              <th className="px-8 py-5">Invites</th>
-              <th className="px-8 py-5">Joined</th>
-              <th className="px-8 py-5 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {filteredUsers.map(user => (
-              <tr key={user.id} className="hover:bg-white/5 transition-colors group">
-                <td className="px-8 py-5">
-                  <div className="flex items-center gap-4">
-                    <img src={user.avatar} alt="" className="w-10 h-10 rounded-full border border-white/10" />
-                    <span className="text-white font-bold group-hover:text-indigo-400 transition-colors">{user.username}</span>
-                  </div>
-                </td>
-                <td className="px-8 py-5 text-slate-400 font-mono text-sm">{user.id}</td>
-                <td className="px-8 py-5">
-                  <span className="px-3 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 text-xs font-bold border border-indigo-500/20">
-                    {user.invites}
-                  </span>
-                </td>
-                <td className="px-8 py-5 text-slate-400 text-sm">{user.joinedAt}</td>
-                <td className="px-8 py-5 text-right">
-                  <button className="text-slate-500 hover:text-white transition-colors">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
-                  </button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[800px]">
+            <thead>
+              <tr className="bg-white/5 text-slate-400 text-xs font-bold uppercase tracking-wider">
+                <th className="px-8 py-5">User</th>
+                <th className="px-8 py-5">Discord ID</th>
+                <th className="px-8 py-5">Invites</th>
+                <th className="px-8 py-5">Joined</th>
+                <th className="px-8 py-5 text-right">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {filteredUsers.length > 0 ? (
+                filteredUsers.map(user => (
+                  <tr key={user.id} className="hover:bg-white/5 transition-colors group">
+                    <td className="px-8 py-5">
+                      <div className="flex items-center gap-4">
+                        <img 
+                          src={user.avatar || 'https://cdn.discordapp.com/embed/avatars/0.png'} 
+                          alt="" 
+                          className="w-10 h-10 rounded-full border border-white/10 bg-slate-800" 
+                          onError={(e) => { e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                        />
+                        <span className="text-white font-bold group-hover:text-indigo-400 transition-colors">{user.username}</span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-5 text-slate-400 font-mono text-sm">{user.id}</td>
+                    <td className="px-8 py-5">
+                      <span className={`px-3 py-1 rounded-lg text-xs font-bold border ${
+                        user.invites > 0 
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                          : user.invites < 0 
+                            ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                            : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                      }`}>
+                        {user.invites > 0 ? `+${user.invites}` : user.invites}
+                      </span>
+                    </td>
+                    <td className="px-8 py-5 text-slate-400 text-sm">{user.joinedAt}</td>
+                    <td className="px-8 py-5 text-right">
+                      <button className="text-slate-500 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-lg">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5" className="px-8 py-20 text-center text-slate-500 font-medium">
+                    {searchTerm ? `No users found matching "${searchTerm}"` : 'No members found in this server.'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

@@ -285,6 +285,29 @@ router.post('/select-guild', requireAuth, (req, res) => {
 });
 
 /**
+ * GET /api/dashboard/guild-data
+ * Returns roles and channels for the selected guild
+ */
+router.get('/guild-data', requireAuth, async (req, res) => {
+  try {
+    const guild = getSelectedGuild(req);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+
+    const roles = guild.roles.cache
+      .filter(r => r.name !== '@everyone')
+      .map(r => ({ id: r.id, name: r.name, color: r.hexColor }));
+
+    const channels = guild.channels.cache
+      .filter(c => c.type === 0) // Text channels
+      .map(c => ({ id: c.id, name: c.name }));
+
+    res.json({ roles, channels });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/dashboard/stats
  */
 router.get('/stats', requireAuth, async (req, res) => {
@@ -321,13 +344,15 @@ router.get('/stats', requireAuth, async (req, res) => {
 router.get('/tickets', requireStaff, async (req, res) => {
   try {
     const guild = getSelectedGuild(req);
-    const ticketCategoryId = '1458907554573844715';
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+    
+    const ticketCategoryId = storage.get(guild.id, 'ticketCategoryId') || '1458907554573844715';
     
     const tickets = guild.channels.cache
       .filter(c => c.parentId === ticketCategoryId)
       .map(c => ({
         id: c.id,
-        user: c.name.split('-')[1] || 'Unknown',
+        user: c.name.replace('ticket-', ''),
         status: 'open',
         created: new Date(c.createdTimestamp).toLocaleDateString()
       }));
@@ -339,12 +364,45 @@ router.get('/tickets', requireStaff, async (req, res) => {
 });
 
 /**
+ * GET /api/dashboard/tickets/:id/messages
+ */
+router.get('/tickets/:id/messages', requireStaff, async (req, res) => {
+  try {
+    const guild = getSelectedGuild(req);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+
+    const channel = guild.channels.cache.get(req.params.id);
+    if (!channel) return res.status(404).json({ error: 'Ticket not found' });
+
+    const messages = await channel.messages.fetch({ limit: 100 });
+    const formattedMessages = messages.map(m => ({
+      id: m.id,
+      author: {
+        username: m.author.username,
+        avatar: m.author.displayAvatarURL(),
+        bot: m.author.bot
+      },
+      content: m.content,
+      timestamp: m.createdTimestamp,
+      attachments: m.attachments.map(a => a.url)
+    })).reverse();
+
+    res.json(formattedMessages);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/dashboard/users
  */
 router.get('/users', requireStaff, async (req, res) => {
   try {
     const guild = getSelectedGuild(req);
-    const members = await guild.members.fetch({ limit: 50 });
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+
+    // Fetch all members if possible, or a larger limit
+    const members = await guild.members.fetch();
     
     const users = members.map(m => {
       const invData = inviteManager.getUserData(guild.id, m.id);
@@ -388,11 +446,33 @@ router.get('/giveaways', requireStaff, async (req, res) => {
 router.get('/settings', requireStaff, async (req, res) => {
   try {
     const guild = getSelectedGuild(req);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+
     res.json({
       welcomeChannel: storage.get(guild.id, 'welcomeChannel'),
       autoRole: storage.get(guild.id, 'autoRoleId'),
-      ticketCategory: '1458907554573844715'
+      ticketCategory: storage.get(guild.id, 'ticketCategoryId') || '1458907554573844715'
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/dashboard/settings
+ */
+router.post('/settings', requireStaff, async (req, res) => {
+  try {
+    const guild = getSelectedGuild(req);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+
+    const { autoRole, welcomeChannel, ticketCategory } = req.body;
+
+    if (autoRole !== undefined) storage.set(guild.id, 'autoRoleId', autoRole);
+    if (welcomeChannel !== undefined) storage.set(guild.id, 'welcomeChannel', welcomeChannel);
+    if (ticketCategory !== undefined) storage.set(guild.id, 'ticketCategoryId', ticketCategory);
+
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

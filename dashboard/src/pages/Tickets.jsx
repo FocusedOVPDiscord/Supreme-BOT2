@@ -3,6 +3,9 @@ import { useEffect, useState } from 'react';
 export default function Tickets() {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
 
   useEffect(() => {
     fetch('/api/dashboard/tickets', { credentials: 'include' })
@@ -13,6 +16,23 @@ export default function Tickets() {
       })
       .catch(() => setLoading(false));
   }, []);
+
+  const viewChat = async (ticket) => {
+    setSelectedTicket(ticket);
+    setLoadingMessages(true);
+    setMessages([]);
+    try {
+      const response = await fetch(`/api/dashboard/tickets/${ticket.id}/messages`, { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setMessages(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch messages:', error);
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
 
   if (loading) return <div className="p-8 text-white">Loading tickets...</div>;
 
@@ -37,7 +57,10 @@ export default function Tickets() {
             <h3 className="text-xl font-bold text-white mb-1 group-hover:text-indigo-400 transition-colors">{ticket.user}</h3>
             <p className="text-slate-500 text-sm mb-4">Created on {ticket.created}</p>
             <div className="flex gap-3">
-              <button className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold transition-all">
+              <button 
+                onClick={() => viewChat(ticket)}
+                className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold transition-all"
+              >
                 View Chat
               </button>
               <button className="px-4 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all">
@@ -52,6 +75,72 @@ export default function Tickets() {
           </div>
         )}
       </div>
+
+      {/* Chat Modal */}
+      {selectedTicket && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-white/10 rounded-3xl w-full max-w-3xl max-h-[80vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/5">
+              <div>
+                <h2 className="text-xl font-bold text-white">Ticket: {selectedTicket.user}</h2>
+                <p className="text-xs text-slate-400 font-mono">{selectedTicket.id}</p>
+              </div>
+              <button 
+                onClick={() => setSelectedTicket(null)}
+                className="p-2 hover:bg-white/10 rounded-xl text-slate-400 hover:text-white transition-all"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-900/50">
+              {loadingMessages ? (
+                <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                  <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-slate-400 font-medium">Loading messages...</p>
+                </div>
+              ) : messages.length > 0 ? (
+                messages.map((msg) => (
+                  <div key={msg.id} className={`flex gap-4 ${msg.author.bot ? 'opacity-80' : ''}`}>
+                    <img src={msg.author.avatar} alt="" className="w-10 h-10 rounded-full border border-white/10 flex-shrink-0" />
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`font-bold text-sm ${msg.author.bot ? 'text-indigo-400' : 'text-white'}`}>
+                          {msg.author.username}
+                        </span>
+                        {msg.author.bot && (
+                          <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 text-[10px] font-bold uppercase">Bot</span>
+                        )}
+                        <span className="text-[10px] text-slate-500">
+                          {new Date(msg.timestamp).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="text-slate-300 text-sm leading-relaxed break-words whitespace-pre-wrap">
+                        {msg.content}
+                      </div>
+                      {msg.attachments.length > 0 && (
+                        <div className="pt-2 flex flex-wrap gap-2">
+                          {msg.attachments.map((url, i) => (
+                            <a key={i} href={url} target="_blank" rel="noreferrer" className="block rounded-lg overflow-hidden border border-white/10 hover:border-indigo-500/50 transition-all">
+                              <img src={url} alt="Attachment" className="max-w-[200px] max-h-[200px] object-contain bg-black/20" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-20 text-slate-500">No messages found in this ticket.</div>
+              )}
+            </div>
+            
+            <div className="p-6 border-t border-white/5 bg-white/5">
+              <p className="text-xs text-slate-500 text-center italic">This is a read-only view of the ticket history.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
