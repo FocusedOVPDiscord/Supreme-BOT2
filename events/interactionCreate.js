@@ -36,11 +36,19 @@ module.exports = {
             try {
                 await command.execute(interaction);
             } catch (error) {
-                console.error(error);
-                if (interaction.replied || interaction.deferred) {
-                    await interaction.followUp({ content: 'There was an error while executing this command!', flags: [MessageFlags.Ephemeral] });
-                } else {
-                    await interaction.reply({ content: 'There was an error while executing this command!', flags: [MessageFlags.Ephemeral] });
+                if (error.code === 10062) {
+                    console.warn(`⚠️ [INTERACTION] Interaction ${interaction.id} expired before command execution.`);
+                    return;
+                }
+                console.error('❌ [COMMAND ERROR]:', error);
+                try {
+                    if (interaction.replied || interaction.deferred) {
+                        await interaction.followUp({ content: 'There was an error while executing this command!', flags: [MessageFlags.Ephemeral] });
+                    } else {
+                        await interaction.reply({ content: 'There was an error while executing this command!', flags: [MessageFlags.Ephemeral] });
+                    }
+                } catch (e) {
+                    console.error('❌ [REPLY ERROR]: Could not send error message to user:', e.message);
                 }
             }
         }
@@ -160,7 +168,12 @@ module.exports = {
                 const modal = new ModalBuilder().setCustomId(`mm_app_accept_modal_${applicantId}`).setTitle('Accept MM Application');
                 const reasonInput = new TextInputBuilder().setCustomId('accept_reason').setLabel('Reason for Acceptance').setStyle(TextInputStyle.Paragraph).setPlaceholder('e.g. Great history and vouches.').setRequired(true);
                 modal.addComponents(new ActionRowBuilder().addComponents(reasonInput));
-                return await interaction.showModal(modal);
+                try {
+                    return await interaction.showModal(modal);
+                } catch (error) {
+                    if (error.code === 10062) return console.warn('⚠️ [MODAL] Interaction expired before showing accept modal.');
+                    throw error;
+                }
             }
 
             if (customId.startsWith('mm_app_deny_')) {
@@ -168,7 +181,12 @@ module.exports = {
                 const modal = new ModalBuilder().setCustomId(`mm_app_deny_modal_${applicantId}`).setTitle('Deny MM Application');
                 const reasonInput = new TextInputBuilder().setCustomId('deny_reason').setLabel('Reason for Denial').setStyle(TextInputStyle.Paragraph).setPlaceholder('e.g. Not enough experience.').setRequired(true);
                 modal.addComponents(new ActionRowBuilder().addComponents(reasonInput));
-                return await interaction.showModal(modal);
+                try {
+                    return await interaction.showModal(modal);
+                } catch (error) {
+                    if (error.code === 10062) return console.warn('⚠️ [MODAL] Interaction expired before showing deny modal.');
+                    throw error;
+                }
             }
 
             if (customId === 'verify_user') {
@@ -189,7 +207,12 @@ module.exports = {
                     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('trade_type').setLabel('Trade Type?').setStyle(TextInputStyle.Short).setRequired(true)),
                     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('trade_details').setLabel('Enter The Trade Below').setStyle(TextInputStyle.Paragraph).setRequired(true))
                 );
-                return await interaction.showModal(modal);
+                try {
+                    return await interaction.showModal(modal);
+                } catch (error) {
+                    if (error.code === 10062) return console.warn('⚠️ [MODAL] Interaction expired before showing ticket modal.');
+                    throw error;
+                }
             }
 
             if (customId === 'start_mm_app_initial') return await appManager.startDMApplication(interaction);

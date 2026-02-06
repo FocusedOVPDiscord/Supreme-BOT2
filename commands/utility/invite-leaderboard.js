@@ -97,7 +97,7 @@ module.exports = {
 
         collector.on('collect', async (i) => {
             if (i.user.id !== interaction.user.id) {
-                return i.reply({ content: 'You cannot use these buttons.', ephemeral: true });
+                return i.reply({ content: 'You cannot use these buttons.', ephemeral: true }).catch(() => {});
             }
 
             if (i.customId === 'prev') {
@@ -119,10 +119,18 @@ module.exports = {
                     .setDisabled(currentPage === totalPages - 1)
             );
 
-            await i.update({
-                embeds: [generateEmbed(currentPage)],
-                components: [updatedRow]
-            });
+            try {
+                await i.update({
+                    embeds: [generateEmbed(currentPage)],
+                    components: [updatedRow]
+                });
+            } catch (error) {
+                if (error.code === 10062) {
+                    console.warn('⚠️ [LEADERBOARD] Interaction expired during update.');
+                } else {
+                    console.error('❌ [LEADERBOARD ERROR]:', error);
+                }
+            }
         });
 
         collector.on('end', () => {
