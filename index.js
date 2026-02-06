@@ -183,19 +183,61 @@ client.login(TOKEN).catch(err => {
 /* ===============================
    EXPRESS SERVER & KEEP-ALIVE
 ================================ */
+const session = require('express-session');
+const dashboardApi = require('./routes/dashboardApi');
+
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-    app.get('/', (req, res) => {
-    const isDiscordReady = client.isReady();
-    res.status(isDiscordReady ? 200 : 503).json({
-        status: isDiscordReady ? 'online' : 'starting',
-        discord: isDiscordReady ? 'connected' : 'disconnected',
-        bot: client.user ? client.user.tag : 'Starting...',
-        uptime: Math.floor(process.uptime()),
-        memory: Math.round(process.memoryUsage().rss / 1024 / 1024) + 'MB',
-        timestamp: new Date().toISOString()
+// Session middleware for authentication
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'supreme-bot-secret-key-change-in-production',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { 
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+}));
+
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Store client in app locals for API routes
+app.locals.client = client;
+
+// Dashboard API routes
+app.use('/api/dashboard', dashboardApi);
+
+// Serve static files for the React dashboard
+const dashboardDistPath = path.join(__dirname, 'dashboard', 'dist');
+if (fs.existsSync(dashboardDistPath)) {
+    app.use('/dashboard', express.static(dashboardDistPath));
+    
+    // SPA fallback: for any route under /dashboard, serve the dashboard's index.html
+    app.get('/dashboard/*', (req, res) => {
+        res.sendFile(path.join(dashboardDistPath, 'index.html'));
     });
+}
+
+// Redirect root to dashboard
+app.get('/', (req, res) => {
+    if (fs.existsSync(dashboardDistPath)) {
+        res.redirect('/dashboard');
+    } else {
+        const isDiscordReady = client.isReady();
+        res.status(isDiscordReady ? 200 : 503).json({
+            status: isDiscordReady ? 'online' : 'starting',
+            discord: isDiscordReady ? 'connected' : 'disconnected',
+            bot: client.user ? client.user.tag : 'Starting...',
+            uptime: Math.floor(process.uptime()),
+            memory: Math.round(process.memoryUsage().rss / 1024 / 1024) + 'MB',
+            timestamp: new Date().toISOString(),
+            message: 'Dashboard not built yet. Run: cd dashboard && npm run build'
+        });
+    }
 });
 
 app.get('/health', (req, res) => {
