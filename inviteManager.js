@@ -1,105 +1,106 @@
-const fs = require('fs');
-const path = require('path');
-const { getPath, DATA_DIR } = require('./pathConfig');
+const { query } = require('./utils/db');
 
 class InviteManager {
-    constructor() {
-        this.dataPath = getPath('invites.json');
-        this.joinHistoryPath = getPath('join-history.json');
-        this.configPath = getPath('invite-config.json');
-        this.ensureDataFiles();
-    }
+    constructor() {}
 
-    ensureDataFiles() {
-        const dataDir = DATA_DIR;
-        if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-        if (!fs.existsSync(this.dataPath)) fs.writeFileSync(this.dataPath, JSON.stringify({}, null, 2));
-        if (!fs.existsSync(this.joinHistoryPath)) fs.writeFileSync(this.joinHistoryPath, JSON.stringify({}, null, 2));
-        if (!fs.existsSync(this.configPath)) {
-            const defaultConfig = { fakeAccountAgeHours: 168, autoFarmWindowMinutes: 30, requireAvatar: true, suspiciousUsernamePatterns: [] };
-            fs.writeFileSync(this.configPath, JSON.stringify(defaultConfig, null, 2));
+    async getUserData(guildId, userId) {
+        try {
+            const results = await query(
+                'SELECT * FROM invites WHERE guild_id = ? AND user_id = ?',
+                [guildId, userId]
+            );
+            if (results.length > 0) {
+                const row = results[0];
+                return {
+                    regular: row.regular,
+                    fake: row.fake,
+                    bonus: row.bonus,
+                    left: row.left_count
+                };
+            }
+        } catch (error) {
+            console.error('Error getting user data from TiDB:', error);
         }
+        return { regular: 0, fake: 0, bonus: 0, left: 0 };
     }
 
-    loadData() {
-        try { return JSON.parse(fs.readFileSync(this.dataPath, 'utf8')); } 
-        catch (error) { return {}; }
-    }
-
-    saveData(data) {
-        fs.writeFileSync(this.dataPath, JSON.stringify(data, null, 2));
-    }
-
-    loadJoinHistory() {
-        try { return JSON.parse(fs.readFileSync(this.joinHistoryPath, 'utf8')); } 
-        catch (error) { return {}; }
-    }
-
-    saveJoinHistory(data) {
-        fs.writeFileSync(this.joinHistoryPath, JSON.stringify(data, null, 2));
-    }
-
-    getConfig() {
-        try { return JSON.parse(fs.readFileSync(this.configPath, 'utf8')); } 
-        catch (error) { return { fakeAccountAgeHours: 168, autoFarmWindowMinutes: 30, requireAvatar: true, suspiciousUsernamePatterns: [] }; }
-    }
-
-    saveConfig(config) {
-        fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2));
-    }
-
-    getUserData(guildId, userId) {
-        const data = this.loadData();
-        if (!data[guildId]) return { regular: 0, fake: 0, bonus: 0, left: 0 };
-        if (!data[guildId][userId]) return { regular: 0, fake: 0, bonus: 0, left: 0 };
-        return data[guildId][userId];
-    }
-
-    updateUser(guildId, userId, updates) {
-        const data = this.loadData();
-        if (!data[guildId]) data[guildId] = {};
-        if (!data[guildId][userId]) data[guildId][userId] = { regular: 0, fake: 0, bonus: 0, left: 0 };
-        Object.assign(data[guildId][userId], updates);
-        this.saveData(data);
-        return data[guildId][userId];
+    async updateUser(guildId, userId, updates) {
+        try {
+            const current = await this.getUserData(guildId, userId);
+            const newData = { ...current, ...updates };
+            
+            await query(
+                'INSERT INTO invites (guild_id, user_id, regular, fake, bonus, left_count) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE regular=?, fake=?, bonus=?, left_count=?',
+                [guildId, userId, newData.regular, newData.fake, newData.bonus, newData.left, newData.regular, newData.fake, newData.bonus, newData.left]
+            );
+            return newData;
+        } catch (error) {
+            console.error('Error updating user in TiDB:', error);
+            return updates;
+        }
     }
 
     isFakeMember(member) {
-        const config = this.getConfig();
+        // This remains logic-based, but config should be fetched from storage (which uses TiDB)
         const accountAge = Date.now() - member.user.createdTimestamp;
-        const threshold = config.fakeAccountAgeHours * 60 * 60 * 1000;
+        const threshold = 168 * 60 * 60 * 1000; // Default 168h
         if (accountAge < threshold) return true;
-        if (config.requireAvatar && !member.user.avatar) return true;
+        if (!member.user.avatar) return true;
         return false;
     }
 
-    hasJoinedBefore(guildId, userId) {
-        const history = this.loadJoinHistory();
-        const key = `${guildId}_${userId}`;
-        return history[key] !== undefined;
-    }
-
-    recordJoin(guildId, userId, inviterId, isFake) {
-        const history = this.loadJoinHistory();
-        const key = `${guildId}_${userId}`;
-        history[key] = { inviterId, isFake, joinedAt: Date.now() };
-        this.saveJoinHistory(history);
-    }
-
-    getJoinData(guildId, userId) {
-        const history = this.loadJoinHistory();
-        const key = `${guildId}_${userId}`;
-        return history[key] || null;
-    }
-
-    resetAll(guildId) {
-        const data = this.loadData();
-        if (data[guildId]) {
-            data[guildId] = {};
-            this.saveData(data);
-            return true;
+    async hasJoinedBefore(guildId, userId) {
+        try {
+            const results = await query(
+                'SELECT 1 FROM join_history WHERE guild_id = ? AND user_id = ?',
+                [guildId, userId]
+            );
+            return results.length > 0;
+        } catch (error) {
+            console.error('Error checking join history in TiDB:', error);
+            return false;
         }
-        return false;
+    }
+
+    async recordJoin(guildId, userId, inviterId, isFake) {
+        try {
+            await query(
+                'INSERT INTO join_history (guild_id, user_id, inviter_id, is_fake, joined_at) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE inviter_id=?, is_fake=?, joined_at=?',
+                [guildId, userId, inviterId, isFake ? 1 : 0, Date.now(), inviterId, isFake ? 1 : 0, Date.now()]
+            );
+        } catch (error) {
+            console.error('Error recording join in TiDB:', error);
+        }
+    }
+
+    async getJoinData(guildId, userId) {
+        try {
+            const results = await query(
+                'SELECT * FROM join_history WHERE guild_id = ? AND user_id = ?',
+                [guildId, userId]
+            );
+            if (results.length > 0) {
+                return {
+                    inviterId: results[0].inviter_id,
+                    isFake: results[0].is_fake === 1,
+                    joinedAt: results[0].joined_at
+                };
+            }
+        } catch (error) {
+            console.error('Error getting join data from TiDB:', error);
+        }
+        return null;
+    }
+
+    async resetAll(guildId) {
+        try {
+            await query('DELETE FROM invites WHERE guild_id = ?', [guildId]);
+            await query('DELETE FROM join_history WHERE guild_id = ?', [guildId]);
+            return true;
+        } catch (error) {
+            console.error('Error resetting guild data in TiDB:', error);
+            return false;
+        }
     }
 }
 

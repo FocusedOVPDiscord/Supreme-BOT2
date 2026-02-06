@@ -1,19 +1,28 @@
-# Discord API Rate Limit Fixes
+# Supreme-BOT2 Optimization & Persistence Report
 
-## Issues Identified
-1. **Aggressive Member Fetching**: The bot was fetching all members of every guild on startup (`guild.members.fetch()`), which is a heavy operation and can quickly trigger global rate limits, especially for larger servers.
-2. **Dashboard Member Fetching**: The dashboard API was also attempting to fetch all members if the cache was less than 80% full, leading to repeated heavy API calls.
-3. **Lack of Rate Limit Handling**: The OAuth callback didn't specifically handle 429 (Rate Limit) errors from Discord, making it hard to diagnose the issue from the UI.
+## 1. Rate Limit & Performance Fixes
+- **Smart Member Fetching**: Replaced heavy startup fetching with on-demand chunked fetching (200 members at a time).
+- **Accurate Pagination**: Fixed dashboard logic to show correct member ranges (e.g., "Showing 481-510 of 510") and reliable page navigation.
+- **Cache-First Strategy**: Bot uses local cache for role verification to minimize Discord API calls.
 
-## Fixes Implemented
-1. **Optimized Startup**: Removed the `guild.members.fetch()` call from the `ready` event in `index.js`. The bot now relies on lazy loading and gateway events to populate the member cache.
-2. **Smarter Member Loading**: 
-   - Updated `/api/dashboard/users` to use a "chunked" loading strategy. Instead of downloading all members at once, it fetches small groups (200 members) only when the cache is empty or too small.
-   - This ensures the user list still loads in your dashboard without triggering Discord's "Global Rate Limit" block.
-   - Added cache-first check in the OAuth callback for role verification to speed up login.
-3. **Improved Error Handling**: Added specific handling for HTTP 429 errors in the OAuth callback to provide better feedback to the user.
-4. **Cache-First Verification**: The OAuth process now checks the local member cache first before making an API call to fetch member roles.
+## 2. Persistent Storage (TiDB Cloud)
+The bot has been migrated from local JSON files to **TiDB Cloud** (MySQL-compatible) to ensure no data is lost during Koyeb redeploys.
 
-## Recommendations
-- Ensure the bot has the `GUILD_MEMBERS` privileged intent enabled in the Discord Developer Portal (which you've mentioned is done).
-- If the rate limit persists, wait for the temporary block to expire (usually 1-2 hours) before trying again.
+### Changes Implemented:
+- **Database Utility**: Created `utils/db.js` for secure TLS connection to TiDB.
+- **Refactored Storage**: `commands/utility/storage.js` now reads/writes guild settings to the cloud.
+- **Invite Persistence**: `inviteManager.js` now stores all invite data and join history in TiDB.
+- **Transcript Storage**: `utils/dashboardTranscript.js` and dashboard routes now use TiDB for ticket transcripts.
+- **Trusted IPs**: Dashboard auto-login now uses a persistent `trusted_ips` table.
+
+### Required Environment Variables for Koyeb:
+To maintain this persistence, ensure these variables are set in your Koyeb dashboard:
+- `TIDB_HOST`: `gateway01.eu-central-1.prod.aws.tidbcloud.com`
+- `TIDB_PORT`: `4000`
+- `TIDB_USER`: `39dLWhtiYpb23H3.root`
+- `TIDB_PASSWORD`: `Fy7EgTV2syrN0E3N`
+- `TIDB_DB`: `test`
+
+## 3. Multi-Server Support
+- **Dynamic Guild List**: The dashboard dropdown now correctly shows all servers where the bot is added and the user has staff permissions.
+- **Session Sync**: Switching servers correctly updates the dashboard view and fetches server-specific data.

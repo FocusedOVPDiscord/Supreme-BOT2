@@ -4,53 +4,14 @@ const { EmbedBuilder } = require('discord.js');
 const router = express.Router();
 const storage = require('../commands/utility/storage.js');
 const inviteManager = require('../inviteManager.js');
-const fs = require('fs');
-const path = require('path');
-const { getPath } = require('../pathConfig');
+const { query } = require('../utils/db');
 const { saveTranscriptToDashboard, formatMessagesForDashboard } = require('../utils/dashboardTranscript');
-
-const TRANSCRIPTS_FILE = getPath('transcripts.json');
-
-function loadTranscripts() {
-  try {
-    if (fs.existsSync(TRANSCRIPTS_FILE)) {
-      return JSON.parse(fs.readFileSync(TRANSCRIPTS_FILE, 'utf8'));
-    }
-  } catch (error) {
-    console.error('Error loading transcripts:', error);
-  }
-  return {};
-}
 
 // Configuration
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '1459183931005075701';
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '2HFpZf8paKaxZnSfuhbAFr4nx8hn-ymg';
 const REDIRECT_URI = process.env.REDIRECT_URI || 'https://breakable-tiger-supremebot1-d8a3b39c.koyeb.app/dashboard/login';
 const STAFF_ROLE_IDS = ['982731220913913856', '958703198447755294', '1410661468688482314'];
-
-// Trusted IPs storage
-const TRUSTED_IPS_FILE = path.join(__dirname, '..', 'data', 'trusted-ips.json');
-
-// Load trusted IPs
-function loadTrustedIPs() {
-  try {
-    if (fs.existsSync(TRUSTED_IPS_FILE)) {
-      return JSON.parse(fs.readFileSync(TRUSTED_IPS_FILE, 'utf8'));
-    }
-  } catch (error) {
-    console.error('Error loading trusted IPs:', error);
-  }
-  return {};
-}
-
-// Save trusted IPs
-function saveTrustedIPs(trustedIPs) {
-  try {
-    fs.writeFileSync(TRUSTED_IPS_FILE, JSON.stringify(trustedIPs, null, 2));
-  } catch (error) {
-    console.error('Error saving trusted IPs:', error);
-  }
-}
 
 // Get client IP address
 function getClientIP(req) {
@@ -84,68 +45,42 @@ const requireAuth = (req, res, next) => {
 };
 
 /**
- * Middleware to check if user has staff role
- */
-const requireStaff = (req, res, next) => {
-  if (!req.session || !req.session.user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  const userRoles = req.session.user.roles || [];
-  const isStaff = userRoles.some(roleId => STAFF_ROLE_IDS.includes(roleId));
-
-  if (!isStaff) {
-    return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
-  }
-
-  next();
-};
-
-/**
  * GET /api/dashboard/auth/me
  */
 router.get('/auth/me', async (req, res) => {
-  // Check if user has valid session
   if (req.session && req.session.user) {
     return res.json(req.session.user);
   }
   
-  // Check if IP is trusted for auto-login
   const clientIP = getClientIP(req);
-  const trustedIPs = loadTrustedIPs();
-  
-  if (trustedIPs[clientIP]) {
-    const trustedUser = trustedIPs[clientIP];
-    
-    // Verify user still has staff role
-    const client = req.app.locals.client;
-    const guild = client.guilds.cache.first();
-    
-    if (guild) {
-      try {
-        const member = await guild.members.fetch(trustedUser.id).catch(() => null);
+  try {
+    const results = await query('SELECT * FROM trusted_ips WHERE ip = ?', [clientIP]);
+    if (results.length > 0) {
+      const trustedUser = results[0];
+      const client = req.app.locals.client;
+      const guild = client.guilds.cache.first();
+      
+      if (guild) {
+        const member = await guild.members.fetch(trustedUser.user_id).catch(() => null);
         if (member) {
           const userRoles = member.roles.cache.map(role => role.id);
           const isStaff = userRoles.some(roleId => STAFF_ROLE_IDS.includes(roleId));
           
           if (isStaff) {
-            // Auto-login user
             req.session.user = {
-              id: trustedUser.id,
+              id: trustedUser.user_id,
               username: trustedUser.username,
               avatar: trustedUser.avatar,
               roles: userRoles,
               isStaff: true
             };
-            
-            console.log(`✅ Auto-login successful for ${trustedUser.username} from IP ${clientIP}`);
             return res.json(req.session.user);
           }
         }
-      } catch (error) {
-        console.error('Auto-login verification failed:', error);
       }
     }
+  } catch (error) {
+    console.error('Auto-login verification failed:', error);
   }
   
   res.status(401).json({ error: 'Not authenticated' });
@@ -180,20 +115,9 @@ router.post('/auth/callback', async (req, res) => {
     let userRoles = [];
 
     if (botGuild) {
-      try {
-        // Try cache first to avoid API call
-        const cachedMember = botGuild.members.cache.get(discordUser.id);
-        if (cachedMember) {
-          userRoles = cachedMember.roles.cache.map(role => role.id);
-        } else {
-          // If not in cache, fetch with a timeout and handle rate limits
-          const member = await botGuild.members.fetch({ user: discordUser.id, force: false }).catch(() => null);
-          if (member) {
-            userRoles = member.roles.cache.map(role => role.id);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch member roles:', error);
+      const member = await botGuild.members.fetch(discordUser.id).catch(() => null);
+      if (member) {
+        userRoles = member.roles.cache.map(role => role.id);
       }
     }
 
@@ -210,33 +134,15 @@ router.post('/auth/callback', async (req, res) => {
       isStaff: true
     };
     
-    // Save IP as trusted
     const clientIP = getClientIP(req);
-    const trustedIPs = loadTrustedIPs();
-    trustedIPs[clientIP] = {
-      id: discordUser.id,
-      username: discordUser.username,
-      avatar: discordUser.avatar,
-      lastLogin: new Date().toISOString()
-    };
-    saveTrustedIPs(trustedIPs);
+    await query(
+      'INSERT INTO trusted_ips (ip, user_id, username, avatar, last_login) VALUES (?, ?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE user_id=?, username=?, avatar=?, last_login=NOW()',
+      [clientIP, discordUser.id, discordUser.username, discordUser.avatar, discordUser.id, discordUser.username, discordUser.avatar]
+    );
     
-    console.log(`✅ Login successful for ${discordUser.username} from IP ${clientIP} (saved as trusted)`);
-
     res.json({ success: true, user: req.session.user });
   } catch (error) {
-    console.error('OAuth error:', error.response?.data || error.message);
-    
-    // Check if it's a Discord rate limit error
-    if (error.response?.status === 429) {
-      const retryAfter = error.response.headers['retry-after'] || 5;
-      return res.status(429).json({ 
-        error: 'Discord API rate limit exceeded', 
-        message: 'You are being blocked from accessing Discord API temporarily. Please try again in a few minutes.',
-        retryAfter: parseInt(retryAfter)
-      });
-    }
-    
+    console.error('OAuth error:', error.message);
     res.status(500).json({ error: 'Authentication failed' });
   }
 });
@@ -244,18 +150,11 @@ router.post('/auth/callback', async (req, res) => {
 /**
  * POST /api/dashboard/auth/logout
  */
-router.post('/auth/logout', (req, res) => {
+router.post('/auth/logout', async (req, res) => {
   const clientIP = getClientIP(req);
-  const removeTrustedIP = req.body.removeTrustedIP || false;
-  
-  // Optionally remove IP from trusted list
-  if (removeTrustedIP) {
-    const trustedIPs = loadTrustedIPs();
-    delete trustedIPs[clientIP];
-    saveTrustedIPs(trustedIPs);
-    console.log(`🔒 Removed trusted IP: ${clientIP}`);
+  if (req.body.removeTrustedIP) {
+    await query('DELETE FROM trusted_ips WHERE ip = ?', [clientIP]);
   }
-  
   req.session.destroy(() => res.json({ success: true }));
 });
 
@@ -266,43 +165,24 @@ router.get('/guilds', requireAuth, async (req, res) => {
   try {
     const client = req.app.locals.client;
     const userId = req.session.user.id;
-    
     const guilds = [];
     
-    // Iterate through all guilds the bot is in
     for (const [guildId, guild] of client.guilds.cache) {
-      try {
-        // Check if the user is in this guild and has staff permissions
-        // Use cache first to be fast and avoid rate limits
-        let member = guild.members.cache.get(userId);
-        if (!member) {
-          // If not in cache, fetch the specific member
-          member = await guild.members.fetch(userId).catch(() => null);
+      let member = guild.members.cache.get(userId) || await guild.members.fetch(userId).catch(() => null);
+      if (member) {
+        const isStaff = member.roles.cache.some(role => STAFF_ROLE_IDS.includes(role.id));
+        if (isStaff) {
+          guilds.push({
+            id: guild.id,
+            name: guild.name,
+            icon: guild.iconURL({ size: 128 }),
+            memberCount: guild.memberCount
+          });
         }
-
-        if (member) {
-          const userRoles = member.roles.cache.map(role => role.id);
-          const isStaff = userRoles.some(roleId => STAFF_ROLE_IDS.includes(roleId));
-          
-          // If the user is staff in this guild, add it to the list
-          if (isStaff) {
-            guilds.push({
-              id: guild.id,
-              name: guild.name,
-              icon: guild.iconURL({ size: 128 }),
-              memberCount: guild.memberCount
-            });
-          }
-        }
-      } catch (error) {
-        console.error(`Error checking permissions for guild ${guildId}:`, error);
       }
     }
-    
-    console.log(`[DASHBOARD] Found ${guilds.length} authorized guilds for user ${req.session.user.username}`);
     res.json(guilds);
   } catch (error) {
-    console.error('[DASHBOARD] Guilds fetch error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -311,189 +191,71 @@ router.get('/guilds', requireAuth, async (req, res) => {
  * POST /api/dashboard/select-guild
  */
 router.post('/select-guild', requireAuth, async (req, res) => {
-  try {
-    const { guildId } = req.body;
-    const client = req.app.locals.client;
-    const userId = req.session.user.id;
-    
-    const guild = client.guilds.cache.get(guildId);
-    if (!guild) {
-      return res.status(404).json({ error: 'Guild not found' });
-    }
+  const { guildId } = req.body;
+  const client = req.app.locals.client;
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) return res.status(404).json({ error: 'Guild not found' });
 
-    // Verify user is still staff in this guild
-    let member = guild.members.cache.get(userId);
-    if (!member) {
-      member = await guild.members.fetch(userId).catch(() => null);
-    }
-
-    if (!member) {
-      return res.status(403).json({ error: 'You are not a member of this server' });
-    }
-
-    const userRoles = member.roles.cache.map(role => role.id);
-    const isStaff = userRoles.some(roleId => STAFF_ROLE_IDS.includes(roleId));
-
-    if (!isStaff) {
-      return res.status(403).json({ error: 'You do not have staff permissions in this server' });
-    }
-    
-    // Update session with selected guild and new roles for this guild
-    req.session.selectedGuildId = guildId;
-    req.session.user.roles = userRoles;
-    
-    console.log(`✅ User ${req.session.user.username} switched to guild: ${guild.name}`);
-    
-    // Save session explicitly to ensure it's ready for the next request
-    req.session.save((err) => {
-      if (err) {
-        console.error('Session save error:', err);
-        return res.status(500).json({ error: 'Failed to save session' });
-      }
-      res.json({ success: true, guild: { id: guild.id, name: guild.name } });
-    });
-  } catch (error) {
-    console.error('[DASHBOARD] Select guild error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/dashboard/guild-data
- * Returns roles and channels for the selected guild
- */
-router.get('/guild-data', requireAuth, async (req, res) => {
-  try {
-    const guild = getSelectedGuild(req);
-    if (!guild) return res.status(404).json({ error: 'Guild not found' });
-
-    const roles = guild.roles.cache
-      .filter(r => r.name !== '@everyone')
-      .map(r => ({ id: r.id, name: r.name, color: r.hexColor }));
-
-    const channels = guild.channels.cache
-      .filter(c => c.type === 0) // Text channels
-      .map(c => ({ id: c.id, name: c.name }));
-
-    res.json({ roles, channels });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  req.session.selectedGuildId = guildId;
+  req.session.save(() => res.json({ success: true, guild: { id: guild.id, name: guild.name } }));
 });
 
 /**
  * GET /api/dashboard/stats
  */
 router.get('/stats', requireAuth, async (req, res) => {
-  try {
-    const guild = getSelectedGuild(req);
-    if (!guild) return res.status(500).json({ error: 'Bot not in guild' });
+  const guild = getSelectedGuild(req);
+  if (!guild) return res.status(404).json({ error: 'No server selected' });
 
-    const ticketCategoryId = storage.get(guild.id, 'ticketCategoryId') || '1458907554573844715';
-    const activeTickets = guild.channels.cache.filter(c => c.parentId === ticketCategoryId).size;
-    
-    const transcripts = loadTranscripts();
-    const guildTranscripts = transcripts[guild.id] || [];
-    const closedTicketsCount = guildTranscripts.length;
-
-    // Accurate uptime calculation
-    const uptimeSeconds = Math.floor(process.uptime());
-
-    res.json({
-      totalMembers: guild.memberCount,
-      activeTickets: activeTickets,
-      closedTickets: closedTicketsCount,
-      uptime: uptimeSeconds,
-      serverName: guild.name,
-      channels: guild.channels.cache.filter(c => c.type !== 4).size, // Exclude categories
-      roles: guild.roles.cache.size,
-      botStatus: 'Online',
-      recentTickets: guild.channels.cache
-        .filter(c => c.parentId === ticketCategoryId)
-        .first(5)
-        .map(c => ({ id: c.id, title: c.name, status: 'open' }))
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  res.json({
+    totalMembers: guild.memberCount,
+    onlineMembers: guild.members.cache.filter(m => m.presence?.status === 'online').size,
+    boostCount: guild.premiumSubscriptionCount || 0,
+    roleCount: guild.roles.cache.size
+  });
 });
 
 /**
- * GET /api/dashboard/tickets
+ * GET /api/dashboard/users
  */
-router.get('/tickets', requireStaff, async (req, res) => {
+router.get('/users', requireAuth, async (req, res) => {
+  const guild = getSelectedGuild(req);
+  if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 40;
+  const search = req.query.search || '';
+
   try {
-    const guild = getSelectedGuild(req);
-    if (!guild) return res.status(404).json({ error: 'Guild not found' });
-    
-    const ticketCategoryId = storage.get(guild.id, 'ticketCategoryId') || '1458907554573844715';
-    
-    const tickets = guild.channels.cache
-      .filter(c => c.parentId === ticketCategoryId)
-      .map(c => ({
-        id: c.id,
-        user: c.name.replace('ticket-', ''),
-        status: 'open',
-        created: new Date(c.createdTimestamp).toLocaleDateString()
-      }));
+    let members = [];
+    if (search) {
+      const searched = await guild.members.search({ query: search, limit });
+      members = Array.from(searched.values());
+    } else {
+      const required = page * limit;
+      if (guild.members.cache.size < required) {
+        await guild.members.fetch({ limit: Math.max(200, required) });
+      }
+      members = Array.from(guild.members.cache.values());
+    }
 
-    res.json(tickets);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+    members.sort((a, b) => (b.joinedTimestamp || 0) - (a.joinedTimestamp || 0));
+    const total = search ? members.length : guild.memberCount;
+    const start = (page - 1) * limit;
+    const paginated = members.slice(start, start + limit);
 
-/**
- * GET /api/dashboard/tickets/:id/messages
- */
-router.get('/tickets/:id/messages', requireStaff, async (req, res) => {
-  try {
-    const guild = getSelectedGuild(req);
-    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+    const users = await Promise.all(paginated.map(async m => {
+      const invData = await inviteManager.getUserData(guild.id, m.id);
+      return {
+        id: m.id,
+        username: m.user.username,
+        avatar: m.user.displayAvatarURL({ size: 64 }),
+        joinedAt: m.joinedAt,
+        invites: invData.regular + invData.bonus - invData.fake - invData.left
+      };
+    }));
 
-    const channel = guild.channels.cache.get(req.params.id);
-    if (!channel) return res.status(404).json({ error: 'Ticket not found' });
-
-    const messages = await channel.messages.fetch({ limit: 100 });
-    const formattedMessages = messages.map(m => ({
-      id: m.id,
-      author: {
-        username: m.author.username,
-        avatar: m.author.displayAvatarURL(),
-        bot: m.author.bot
-      },
-      content: m.content,
-      timestamp: m.createdTimestamp,
-      attachments: m.attachments.map(a => a.url)
-    })).reverse();
-
-    res.json(formattedMessages);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * DELETE /api/dashboard/tickets/:id
- */
-router.delete('/tickets/:id', requireStaff, async (req, res) => {
-  try {
-    const guild = getSelectedGuild(req);
-    if (!guild) return res.status(404).json({ error: 'Guild not found' });
-
-    const channel = guild.channels.cache.get(req.params.id);
-    if (!channel) return res.status(404).json({ error: 'Ticket not found' });
-
-    // Save transcript before deleting
-    const messages = await channel.messages.fetch({ limit: 100 });
-    
-    saveTranscriptToDashboard(guild.id, channel.id, {
-      user: channel.name.replace('ticket-', ''),
-      messages: formatMessagesForDashboard(messages)
-    });
-
-    await channel.delete();
-    res.json({ success: true });
+    res.json({ users, pagination: { page, total, totalPages: Math.ceil(total / limit) } });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -502,236 +264,26 @@ router.delete('/tickets/:id', requireStaff, async (req, res) => {
 /**
  * GET /api/dashboard/transcripts
  */
-router.get('/transcripts', requireStaff, async (req, res) => {
-  try {
-    const guild = getSelectedGuild(req);
-    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+router.get('/transcripts', requireAuth, async (req, res) => {
+  const guild = getSelectedGuild(req);
+  if (!guild) return res.status(404).json({ error: 'No server selected' });
 
-    const transcripts = loadTranscripts();
-    res.json(transcripts[guild.id] || []);
+  try {
+    const results = await query('SELECT id, user, closed_at FROM transcripts WHERE guild_id = ? ORDER BY closed_at DESC', [guild.id]);
+    res.json(results);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
 /**
- * POST /api/dashboard/users/:id/moderate
+ * GET /api/dashboard/transcripts/:id
  */
-router.post('/users/:id/moderate', requireStaff, async (req, res) => {
+router.get('/transcripts/:id', requireAuth, async (req, res) => {
   try {
-    const guild = getSelectedGuild(req);
-    if (!guild) return res.status(404).json({ error: 'Guild not found' });
-
-    const { action, reason } = req.body;
-    const targetId = req.params.id;
-    const member = await guild.members.fetch(targetId).catch(() => null);
-
-    if (!member && action !== 'ban') {
-      return res.status(404).json({ error: 'Member not found in server' });
-    }
-
-    const moderator = req.session.user.username;
-
-    switch (action) {
-      case 'ban':
-        await guild.members.ban(targetId, { reason: `Moderator: ${moderator} | Reason: ${reason}` });
-        break;
-      case 'kick':
-        await member.kick(`Moderator: ${moderator} | Reason: ${reason}`);
-        break;
-      case 'mute':
-        // Mute for 24 hours by default if no duration
-        await member.timeout(24 * 60 * 60 * 1000, `Moderator: ${moderator} | Reason: ${reason}`);
-        break;
-      case 'warn':
-        const warnEmbed = new EmbedBuilder()
-          .setTitle('⚠️ Professional Warning')
-          .setDescription(`You have received a warning in **${guild.name}**.`)
-          .addFields(
-            { name: 'Reason', value: reason || 'No reason provided' },
-            { name: 'Moderator', value: moderator }
-          )
-          .setColor('#FFA500')
-          .setTimestamp()
-          .setFooter({ text: 'Supreme Management System' });
-        
-        await member.send({ embeds: [warnEmbed] }).catch(() => {
-          throw new Error('Could not send DM to user, but warning logged.');
-        });
-        break;
-      default:
-        return res.status(400).json({ error: 'Invalid action' });
-    }
-
-    res.json({ success: true, message: `User ${action}ned successfully` });
-  } catch (error) {
-    console.error(`Moderation error (${req.body.action}):`, error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/dashboard/users
- */
-router.get('/users', requireStaff, async (req, res) => {
-  try {
-    const guild = getSelectedGuild(req);
-    if (!guild) return res.status(404).json({ error: 'Guild not found' });
-
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 40;
-    const search = req.query.search || '';
-    
-    let membersArray = [];
-    
-    // Use the actual member count from the guild for accurate pagination
-    const totalMembersInGuild = guild.memberCount;
-    
-    try {
-      if (search) {
-        // Search Discord API directly for specific users
-        const searchedMembers = await guild.members.search({ query: search, limit: limit });
-        membersArray = Array.from(searchedMembers.values());
-      } else {
-        // Calculate how many members we need to have in cache to show the requested page
-        const requiredCacheSize = page * limit;
-        
-        // If we don't have enough members in cache for the requested page, fetch more
-        // We fetch until we have enough or we've reached the end
-        if (guild.members.cache.size < requiredCacheSize && guild.members.cache.size < totalMembersInGuild) {
-          console.log(`[DASHBOARD] Fetching more members for ${guild.name} (Need: ${requiredCacheSize}, Cache: ${guild.members.cache.size})...`);
-          try {
-            // Fetch until we have enough for the current page
-            // Note: fetch() without a query fetches all members, but we can't do that.
-            // However, calling it multiple times or with a limit helps.
-            // Discord.js cache will grow as we fetch.
-            await guild.members.fetch({ limit: Math.max(200, requiredCacheSize) }); 
-          } catch (e) {
-            console.warn(`[DASHBOARD] Member fetch failed: ${e.message}`);
-          }
-        }
-        membersArray = Array.from(guild.members.cache.values());
-      }
-    } catch (fetchError) {
-      console.error('[DASHBOARD] Member list error:', fetchError);
-      membersArray = Array.from(guild.members.cache.values());
-    }
-
-    // Sort by join date (newest first)
-    membersArray.sort((a, b) => (b.joinedTimestamp || 0) - (a.joinedTimestamp || 0));
-
-    // For total count: if searching, use the search result count. 
-    // Otherwise, use the actual guild member count for accurate display.
-    const total = search ? membersArray.length : totalMembersInGuild;
-    const totalPages = Math.ceil(total / limit);
-    
-    // Calculate start and end for the current page
-    const start = (page - 1) * limit;
-    const end = Math.min(start + limit, total);
-    
-    // Slice from the current cache
-    const paginatedMembers = membersArray.slice(start, end);
-
-    const users = paginatedMembers.map(m => {
-      const invData = inviteManager.getUserData(guild.id, m.id);
-      return {
-        id: m.id,
-        username: m.user.username,
-        avatar: m.user.displayAvatarURL(),
-        invites: (invData.regular || 0) + (invData.bonus || 0) - (invData.left || 0),
-        joinedAt: new Date(m.joinedTimestamp).toLocaleDateString()
-      };
-    });
-
-    res.json({
-      users,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching users:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/dashboard/giveaways
- */
-router.get('/giveaways', requireStaff, async (req, res) => {
-  try {
-    const guild = getSelectedGuild(req);
-    const allGiveaways = storage.get(guild.id, 'all_giveaways') || [];
-    
-    const giveaways = allGiveaways.map(id => {
-      const data = storage.get(guild.id, `giveaway_${id}`) || [];
-      return { id, participants: data.length, status: 'Active' };
-    });
-
-    res.json(giveaways);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/dashboard/settings
- */
-router.get('/settings', requireStaff, async (req, res) => {
-  try {
-    const guild = getSelectedGuild(req);
-    if (!guild) return res.status(404).json({ error: 'Guild not found' });
-
-    res.json({
-      welcomeChannel: storage.get(guild.id, 'welcomeChannel'),
-      autoRole: storage.get(guild.id, 'autoRoleId'),
-      ticketCategory: storage.get(guild.id, 'ticketCategoryId') || '1458907554573844715'
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * POST /api/dashboard/settings
- */
-router.post('/settings', requireStaff, async (req, res) => {
-  try {
-    const guild = getSelectedGuild(req);
-    if (!guild) return res.status(404).json({ error: 'Guild not found' });
-
-    const { autoRole, welcomeChannel, ticketCategory } = req.body;
-
-    if (autoRole !== undefined) storage.set(guild.id, 'autoRoleId', autoRole);
-    if (welcomeChannel !== undefined) storage.set(guild.id, 'welcomeChannel', welcomeChannel);
-    if (ticketCategory !== undefined) storage.set(guild.id, 'ticketCategoryId', ticketCategory);
-
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/dashboard/audit-logs
- */
-router.get('/audit-logs', requireStaff, async (req, res) => {
-  try {
-    const guild = getSelectedGuild(req);
-    const logs = await guild.fetchAuditLogs({ limit: 20 });
-    
-    res.json(logs.entries.map(l => ({
-      id: l.id,
-      action: l.action,
-      executor: l.executor.username,
-      target: l.target?.username || 'System',
-      timestamp: new Date(l.createdTimestamp).toLocaleString()
-    })));
+    const results = await query('SELECT * FROM transcripts WHERE id = ?', [req.params.id]);
+    if (results.length === 0) return res.status(404).json({ error: 'Transcript not found' });
+    res.json(results[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
