@@ -26,9 +26,14 @@ function App() {
           const userData = await response.json();
           setUser(userData);
           setIsAuthenticated(true);
+          console.log('✅ Auth successful:', userData.username);
+        } else {
+          console.log('⚠️ Auth failed - not authenticated');
+          setIsAuthenticated(false);
         }
       } catch (error) {
-        console.error('Auth check failed:', error);
+        console.error('❌ Auth check error:', error);
+        setIsAuthenticated(false);
       } finally {
         setLoading(false);
       }
