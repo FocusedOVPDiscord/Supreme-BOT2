@@ -5,6 +5,35 @@ const storage = require('../commands/utility/storage.js');
 const inviteManager = require('../inviteManager.js');
 const fs = require('fs');
 const path = require('path');
+const { getPath } = require('../pathConfig');
+
+const TRANSCRIPTS_FILE = getPath('transcripts.json');
+
+function loadTranscripts() {
+  try {
+    if (fs.existsSync(TRANSCRIPTS_FILE)) {
+      return JSON.parse(fs.readFileSync(TRANSCRIPTS_FILE, 'utf8'));
+    }
+  } catch (error) {
+    console.error('Error loading transcripts:', error);
+  }
+  return {};
+}
+
+function saveTranscript(guildId, ticketId, data) {
+  try {
+    const transcripts = loadTranscripts();
+    if (!transcripts[guildId]) transcripts[guildId] = [];
+    transcripts[guildId].push({
+      id: ticketId,
+      closedAt: Date.now(),
+      ...data
+    });
+    fs.writeFileSync(TRANSCRIPTS_FILE, JSON.stringify(transcripts, null, 2));
+  } catch (error) {
+    console.error('Error saving transcript:', error);
+  }
+}
 
 // Configuration
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '1459183931005075701';
@@ -317,13 +346,19 @@ router.get('/stats', requireAuth, async (req, res) => {
 
     const ticketCategoryId = storage.get(guild.id, 'ticketCategoryId') || '1458907554573844715';
     const activeTickets = guild.channels.cache.filter(c => c.parentId === ticketCategoryId).size;
-    const allGiveaways = storage.get(guild.id, 'all_giveaways') || [];
+    
+    const transcripts = loadTranscripts();
+    const guildTranscripts = transcripts[guild.id] || [];
+    const closedTicketsCount = guildTranscripts.length;
+
+    // Accurate uptime calculation
+    const uptimeSeconds = Math.floor(process.uptime());
 
     res.json({
       totalMembers: guild.memberCount,
       activeTickets: activeTickets,
-      totalTrades: allGiveaways.length,
-      uptime: Math.floor(process.uptime()),
+      closedTickets: closedTicketsCount,
+      uptime: uptimeSeconds,
       serverName: guild.name,
       channels: guild.channels.cache.filter(c => c.type !== 4).size, // Exclude categories
       roles: guild.roles.cache.size,
@@ -404,8 +439,36 @@ router.delete('/tickets/:id', requireStaff, async (req, res) => {
     const channel = guild.channels.cache.get(req.params.id);
     if (!channel) return res.status(404).json({ error: 'Ticket not found' });
 
+    // Save transcript before deleting
+    const messages = await channel.messages.fetch({ limit: 100 });
+    const formattedMessages = messages.map(m => ({
+      author: m.author.username,
+      content: m.content,
+      timestamp: m.createdTimestamp
+    })).reverse();
+
+    saveTranscript(guild.id, channel.id, {
+      user: channel.name.replace('ticket-', ''),
+      messages: formattedMessages
+    });
+
     await channel.delete();
     res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/dashboard/transcripts
+ */
+router.get('/transcripts', requireStaff, async (req, res) => {
+  try {
+    const guild = getSelectedGuild(req);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+
+    const transcripts = loadTranscripts();
+    res.json(transcripts[guild.id] || []);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

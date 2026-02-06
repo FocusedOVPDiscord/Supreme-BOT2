@@ -21,6 +21,7 @@ function initializeDataDirectory() {
         'lefts.json': {},
         'regulars.json': {},
         'settings.json': {},
+        'transcripts.json': {},
         'invites.json': {},
         'join-history.json': {},
         'invite-config.json': { fakeAccountAgeHours: 168, autoFarmWindowMinutes: 30, requireAvatar: true, suspiciousUsernamePatterns: [] }
