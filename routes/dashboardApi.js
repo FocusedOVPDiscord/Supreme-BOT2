@@ -520,8 +520,9 @@ router.get('/users', requireStaff, async (req, res) => {
     const guild = getSelectedGuild(req);
     if (!guild) return res.status(404).json({ error: 'Guild not found' });
 
-    // Fetch all members if possible, or a larger limit
-    const members = await guild.members.fetch();
+    // Fetch members with a limit to avoid timeouts in large guilds
+    // If the guild is very large, we fetch the first 1000 members
+    const members = await guild.members.fetch({ limit: 1000 });
     
     const users = members.map(m => {
       const invData = inviteManager.getUserData(guild.id, m.id);
@@ -536,6 +537,7 @@ router.get('/users', requireStaff, async (req, res) => {
 
     res.json(users);
   } catch (error) {
+    console.error('Error fetching users:', error);
     res.status(500).json({ error: error.message });
   }
 });

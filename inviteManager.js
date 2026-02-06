@@ -50,11 +50,8 @@ class InviteManager {
 
     getUserData(guildId, userId) {
         const data = this.loadData();
-        if (!data[guildId]) data[guildId] = {};
-        if (!data[guildId][userId]) {
-            data[guildId][userId] = { regular: 0, fake: 0, bonus: 0, left: 0 };
-            this.saveData(data);
-        }
+        if (!data[guildId]) return { regular: 0, fake: 0, bonus: 0, left: 0 };
+        if (!data[guildId][userId]) return { regular: 0, fake: 0, bonus: 0, left: 0 };
         return data[guildId][userId];
     }
 
