@@ -186,9 +186,11 @@ client.login(TOKEN).catch(err => {
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-app.get('/', (req, res) => {
-    res.json({
-        status: 'online',
+    app.get('/', (req, res) => {
+    const isDiscordReady = client.isReady();
+    res.status(isDiscordReady ? 200 : 503).json({
+        status: isDiscordReady ? 'online' : 'starting',
+        discord: isDiscordReady ? 'connected' : 'disconnected',
         bot: client.user ? client.user.tag : 'Starting...',
         uptime: Math.floor(process.uptime()),
         memory: Math.round(process.memoryUsage().rss / 1024 / 1024) + 'MB',
