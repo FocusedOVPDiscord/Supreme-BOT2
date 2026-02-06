@@ -11,6 +11,14 @@ export default function Dashboard() {
         const response = await fetch('/api/dashboard/stats', {
           credentials: 'include',
         });
+        
+        if (response.status === 500 || response.status === 404) {
+          // This usually means no guild is selected in the session yet
+          setStats(null);
+          setLoading(false);
+          return;
+        }
+
         if (!response.ok) throw new Error('Failed to fetch stats');
         const data = await response.json();
         setStats(data);
@@ -35,12 +43,35 @@ export default function Dashboard() {
     );
   }
 
+  // If no stats and no error, it means no guild is selected
+  if (!stats && !error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8 text-center space-y-6 animate-in fade-in duration-700">
+        <div className="w-24 h-24 rounded-3xl bg-indigo-600/10 flex items-center justify-center text-indigo-400 shadow-xl shadow-indigo-500/10 border border-indigo-500/20">
+          <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-7-4h.01M12 16h.01" />
+          </svg>
+        </div>
+        <div className="max-w-md space-y-2">
+          <h2 className="text-3xl font-black text-white tracking-tight">Welcome to <span className="gradient-text">Supreme Dashboard</span></h2>
+          <p className="text-slate-400">Please select a server from the sidebar to view its statistics and manage its settings.</p>
+        </div>
+        <div className="flex items-center gap-2 text-indigo-400 font-bold animate-bounce mt-4">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          <span>Select a server to begin</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-700">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-4xl font-black text-white tracking-tight">System <span className="gradient-text">Overview</span></h1>
-          <p className="text-slate-400 mt-1">Real-time performance and community metrics.</p>
+          <p className="text-slate-400 mt-1">Real-time performance and community metrics for <strong>{stats?.serverName}</strong>.</p>
         </div>
         <div className="flex items-center gap-3 bg-slate-800/50 p-1.5 rounded-2xl border border-white/5">
           <div className="px-4 py-2 rounded-xl bg-indigo-600/10 text-indigo-400 text-sm font-bold border border-indigo-500/20">
@@ -103,7 +134,10 @@ export default function Dashboard() {
             <InfoRow label="Bot Status" value={stats?.botStatus || 'Offline'} isStatus />
           </div>
           <div className="pt-4">
-            <button className="w-full py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-bold transition-all">
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-bold transition-all"
+            >
               Refresh Data
             </button>
           </div>

@@ -9,9 +9,9 @@ export default function Sidebar({ user, setIsAuthenticated }) {
 
   const handleGuildChange = (guild) => {
     setSelectedGuild(guild);
-    // Instead of reloading the entire page, just update the state
-    // The dashboard components will re-fetch data when needed
-    console.log(`🔄 Guild changed to: ${guild.name}`);
+    // When the user manually selects a guild, we reload the page to refresh all data
+    // This is safe now because we've removed the auto-selection logic that caused the loop
+    window.location.reload();
   };
 
   const handleLogout = async () => {
