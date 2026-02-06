@@ -7,48 +7,48 @@ const DATA_PATH = getPath('active_apps.json');
 const COMPLETED_APPS_PATH = getPath('completed_apps.json');
 const LOG_CHANNEL_ID = '1464393139417645203';
 
-function loadApps() {
+/**
+ * Safely loads JSON data from a file
+ */
+function safeLoadJSON(filePath, defaultValue = {}) {
     try {
-        if (fs.existsSync(DATA_PATH)) {
-            const content = fs.readFileSync(DATA_PATH, 'utf8');
-            return content ? JSON.parse(content) : {};
+        if (fs.existsSync(filePath)) {
+            const content = fs.readFileSync(filePath, 'utf8');
+            return content ? JSON.parse(content) : defaultValue;
         }
     } catch (e) {
-        console.error('[APP MANAGER] Error loading active apps:', e);
+        console.error(`[APP MANAGER] Error loading ${path.basename(filePath)}:`, e.message);
     }
-    return {};
+    return defaultValue;
 }
 
-function saveApps(apps) {
+/**
+ * Safely saves JSON data to a file with atomic write
+ */
+function safeSaveJSON(filePath, data) {
     try {
         if (!fs.existsSync(DATA_DIR)) {
             fs.mkdirSync(DATA_DIR, { recursive: true });
         }
-        const tempPath = `${DATA_PATH}.tmp`;
-        fs.writeFileSync(tempPath, JSON.stringify(apps, null, 2));
-        fs.renameSync(tempPath, DATA_PATH);
+        const tempPath = `${filePath}.tmp`;
+        fs.writeFileSync(tempPath, JSON.stringify(data, null, 2));
+        fs.renameSync(tempPath, filePath);
+        return true;
     } catch (e) {
-        console.error('[APP MANAGER] Error saving application data:', e);
+        console.error(`[APP MANAGER] Error saving ${path.basename(filePath)}:`, e.message);
+        return false;
     }
 }
 
-function loadCompletedApps() {
-    try {
-        if (fs.existsSync(COMPLETED_APPS_PATH)) {
-            const content = fs.readFileSync(COMPLETED_APPS_PATH, 'utf8');
-            return content ? JSON.parse(content) : [];
-        }
-    } catch (e) {
-        console.error('[APP MANAGER] Error loading completed apps:', e);
-    }
-    return [];
-}
+function loadApps() { return safeLoadJSON(DATA_PATH, {}); }
+function saveApps(apps) { return safeSaveJSON(DATA_PATH, apps); }
+function loadCompletedApps() { return safeLoadJSON(COMPLETED_APPS_PATH, []); }
 
 function saveCompletedApp(userId) {
     const completed = loadCompletedApps();
     if (!completed.includes(userId)) {
         completed.push(userId);
-        fs.writeFileSync(COMPLETED_APPS_PATH, JSON.stringify(completed, null, 2));
+        safeSaveJSON(COMPLETED_APPS_PATH, completed);
     }
 }
 
@@ -103,242 +103,130 @@ const questions = [
 module.exports = {
     startDMApplication: async (interaction) => {
         const userId = interaction.user.id;
-        console.log(`[APP MANAGER] User ${userId} requested to start an application.`);
+        console.log(`[APP MANAGER] User ${userId} starting application.`);
 
-        // 1. Check for completed applications
         const completed = loadCompletedApps();
         if (completed.includes(userId)) {
-            console.log(`[APP MANAGER] User ${userId} already has a completed application.`);
             const completedEmbed = new EmbedBuilder()
                 .setTitle('Application Already Submitted')
-                .setDescription('❌ You have already submitted an application. You cannot apply more than once.')
+                .setDescription('❌ You have already submitted an application.')
                 .setColor(0xFF0000);
-            
-            try {
-                return await interaction.reply({ embeds: [completedEmbed], ephemeral: true });
-            } catch (e) {
-                return;
-            }
+            return await interaction.reply({ embeds: [completedEmbed], ephemeral: true }).catch(() => null);
         }
 
-        // 2. Check for active applications
         const apps = loadApps();
         if (apps[userId]) {
-            console.log(`[APP MANAGER] User ${userId} already has an active application.`);
             const progressEmbed = new EmbedBuilder()
                 .setTitle('Application Already In Progress')
-                .setDescription('⚠️ You already have an application in progress. Please check your DMs to continue or close it first.')
+                .setDescription('⚠️ Check your DMs or close the current one first.')
                 .setColor(0xFFAA00);
-            
-            try {
-                return await interaction.reply({ embeds: [progressEmbed], ephemeral: true });
-            } catch (e) {
-                return;
-            }
+            return await interaction.reply({ embeds: [progressEmbed], ephemeral: true }).catch(() => null);
         }
 
-        // 3. Mark as active BEFORE sending DM to prevent race conditions
         apps[userId] = { answers: {}, step: 0, startTime: Date.now(), messageId: null };
         saveApps(apps);
-        console.log(`[APP MANAGER] User ${userId} marked as active.`);
 
-        // Send initial DM with start/close buttons
         try {
             const startEmbed = new EmbedBuilder()
                 .setTitle('Supreme MM - MM Trainee Application')
-                .setDescription('Thank you for your interest in becoming an MM Trainee!\n\nThis application consists of **11 questions** that will be asked one at a time.\n\nPlease answer each question honestly and clearly. You can take your time - there is no rush.\n\n**Click "Start Application" to begin, or "Close Application" to cancel.**')
-                .setColor(0x00FF00)
-                .setFooter({ text: 'Supreme BOT • FocusedOVP' });
+                .setDescription('This application consists of **11 questions**.\n\n**Click "Start Application" to begin.**')
+                .setColor(0x00FF00);
 
-            const startRow = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('confirm_start_mm_app')
-                        .setLabel('Start Application')
-                        .setStyle(ButtonStyle.Success),
-                    new ButtonBuilder()
-                        .setCustomId('stop_mm_app')
-                        .setLabel('Close Application')
-                        .setStyle(ButtonStyle.Danger)
-                );
+            const startRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('confirm_start_mm_app').setLabel('Start Application').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId('stop_mm_app').setLabel('Close Application').setStyle(ButtonStyle.Danger)
+            );
 
             const dmChannel = await interaction.user.createDM();
             const dmMessage = await dmChannel.send({ embeds: [startEmbed], components: [startRow] });
             
-            // Store the message ID so we can edit it later
             const currentApps = loadApps();
             if (currentApps[userId]) {
                 currentApps[userId].messageId = dmMessage.id;
                 saveApps(currentApps);
             }
 
-            const confirmEmbed = new EmbedBuilder()
-                .setTitle('Check Your DMs!')
-                .setDescription('✅ I\'ve sent you a DM to begin your MM Trainee application.\n\nPlease check your direct messages and click the button to start.')
-                .setColor(0x00FF00);
-
-            await interaction.reply({ embeds: [confirmEmbed], ephemeral: true });
+            await interaction.reply({ content: '✅ Check your DMs!', ephemeral: true }).catch(() => null);
         } catch (error) {
-            // If DM fails, remove from active apps so they can try again
             const currentApps = loadApps();
             delete currentApps[userId];
             saveApps(currentApps);
-
-            console.error('[APP MANAGER] Error sending DM:', error);
-            if (error.code === 50007) {
-                const errorEmbed = new EmbedBuilder()
-                    .setTitle('Cannot Send DM')
-                    .setDescription('❌ I couldn\'t send you a DM. Please make sure your DMs are open and try again.')
-                    .setColor(0xFF0000);
-                try {
-                    if (!interaction.replied) await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
-                } catch (e) {}
-            }
+            console.error('[APP MANAGER] DM Error:', error.message);
+            await interaction.reply({ content: '❌ Could not send DM. Please open your DMs.', ephemeral: true }).catch(() => null);
         }
     },
 
     askNextQuestion: async (user, client, currentStep = 0, interaction = null) => {
         const apps = loadApps();
         const userId = user.id;
+        if (!apps[userId]) return;
 
-        if (!apps[userId]) {
-            console.log(`[APP MANAGER] No active application found for user ${userId} when asking next question.`);
-            return;
-        }
-
-        // Update step in memory
         apps[userId].step = currentStep;
         saveApps(apps);
 
-        // If this is the start of the application and we have an interaction, edit the message
         if (currentStep === 0 && interaction) {
-            const startedEmbed = new EmbedBuilder()
-                .setTitle('Application Started! ✅')
-                .setDescription('The application has begun. I will ask you the questions below one by one.')
-                .setColor(0x00FF00);
-            try {
-                await interaction.editReply({ embeds: [startedEmbed], components: [] });
-            } catch (e) {}
+            try { await interaction.editReply({ content: 'Application Started! ✅', embeds: [], components: [] }); } catch (e) {}
         }
 
         if (currentStep >= questions.length) {
-            // All questions answered - submit application
-            await module.exports.submitApplication(user, client);
-            return;
+            return await module.exports.submitApplication(user, client);
         }
 
         const question = questions[currentStep];
         const questionEmbed = new EmbedBuilder()
             .setTitle(`Question ${currentStep + 1} of ${questions.length}`)
-            .setDescription(`**${question.label}**\n\n${question.type === 'text' ? `*${question.placeholder}*` : '*Select an option from the menu below*'}${question.required === false ? '\n\n*(Optional - type "skip" to skip)*' : ''}`)
-            .setColor(0x00AAFF)
-            .setFooter({ text: `Progress: ${currentStep + 1}/${questions.length}` });
+            .setDescription(`**${question.label}**\n\n${question.type === 'text' ? `*${question.placeholder}*` : '*Select an option*'}`)
+            .setColor(0x00AAFF);
 
         const rows = [];
-
         if (question.type === 'select') {
             const select = new StringSelectMenuBuilder()
                 .setCustomId(`mm_app_select_${currentStep}`)
                 .setPlaceholder('Choose an option...')
-                .addOptions(
-                    question.options.map(opt => 
-                        new StringSelectMenuOptionBuilder()
-                            .setLabel(opt.label)
-                            .setValue(opt.value)
-                    )
-                );
+                .addOptions(question.options.map(opt => new StringSelectMenuOptionBuilder().setLabel(opt.label).setValue(opt.value)));
             rows.push(new ActionRowBuilder().addComponents(select));
         }
-
-        const stopRow = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('stop_mm_app')
-                    .setLabel('Close Application')
-                    .setStyle(ButtonStyle.Danger)
-            );
-        rows.push(stopRow);
+        rows.push(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('stop_mm_app').setLabel('Close Application').setStyle(ButtonStyle.Danger)));
 
         try {
             const dmChannel = await user.createDM();
             await dmChannel.send({ embeds: [questionEmbed], components: rows });
         } catch (error) {
-            console.error('[APP MANAGER] Error asking question:', error);
+            console.error('[APP MANAGER] Question Error:', error.message);
         }
     },
 
     handleDMResponse: async (message, client) => {
-        if (message.author.bot) return;
-        if (!message.guild && (message.channel.type === 1 || message.channel.type === 'DM')) {
-            const userId = message.author.id;
-            const apps = loadApps();
+        if (message.author.bot || message.guild) return;
+        const userId = message.author.id;
+        const apps = loadApps();
+        if (!apps[userId]) return;
 
-            if (!apps[userId]) return; // No active application
+        const currentStep = apps[userId].step;
+        if (currentStep < 0 || currentStep >= questions.length) return;
 
-            const currentStep = apps[userId].step;
-            
-            // Safety check for step index
-            if (currentStep < 0 || currentStep >= questions.length) return;
+        const question = questions[currentStep];
+        if (question.type === 'select') return;
 
-            const question = questions[currentStep];
-            
-            // If the current question is a select type, we ignore text input unless it's "skip"
-            if (question.type === 'select' && message.content.toLowerCase() !== 'skip') {
-                const warnEmbed = new EmbedBuilder()
-                    .setDescription('⚠️ Please use the selection menu provided to answer this question.')
-                    .setColor(0xFFAA00);
-                return await message.reply({ embeds: [warnEmbed] });
-            }
+        apps[userId].answers[question.id] = message.content.trim() || 'N/A';
+        saveApps(apps);
 
-            const answer = message.content.trim();
-
-            // Handle skip for optional questions
-            if (question.required === false && answer.toLowerCase() === 'skip') {
-                apps[userId].answers[question.id] = 'N/A';
-            } else {
-                // If question is required and they type "skip", we might want to warn them
-                if (answer.toLowerCase() === 'skip' && question.required !== false) {
-                    const warnEmbed = new EmbedBuilder()
-                        .setDescription('⚠️ This question is required. Please provide an answer.')
-                        .setColor(0xFFAA00);
-                    return await message.reply({ embeds: [warnEmbed] });
-                }
-                apps[userId].answers[question.id] = answer || 'N/A';
-            }
-
-            saveApps(apps);
-
-            // Send confirmation
-            const confirmEmbed = new EmbedBuilder()
-                .setDescription('✅ Answer recorded!')
-                .setColor(0x00FF00);
-            await message.reply({ embeds: [confirmEmbed] });
-
-            // Ask next question
-            await module.exports.askNextQuestion(message.author, client, currentStep + 1);
-        }
+        await message.reply({ content: '✅ Recorded!' }).catch(() => null);
+        await module.exports.askNextQuestion(message.author, client, currentStep + 1);
     },
 
     handleSelectResponse: async (interaction, client) => {
         const userId = interaction.user.id;
         const apps = loadApps();
-
         if (!apps[userId]) return;
 
         const currentStep = apps[userId].step;
         const question = questions[currentStep];
-        const answer = interaction.values[0];
-
-        apps[userId].answers[question.id] = answer;
+        apps[userId].answers[question.id] = interaction.values[0];
         saveApps(apps);
 
-        const confirmEmbed = new EmbedBuilder()
-            .setDescription(`✅ Selected: **${answer}**`)
-            .setColor(0x00FF00);
-        
         try {
-            await interaction.update({ embeds: [confirmEmbed], components: [] });
-            // Ask next question
+            await interaction.update({ content: `✅ Selected: **${interaction.values[0]}**`, embeds: [], components: [] });
             await module.exports.askNextQuestion(interaction.user, client, currentStep + 1);
         } catch (e) {}
     },
@@ -346,96 +234,44 @@ module.exports = {
     stopApplication: async (interaction) => {
         const userId = interaction.user.id;
         const apps = loadApps();
-        
         if (apps[userId]) {
             delete apps[userId];
             saveApps(apps);
-            console.log(`[APP MANAGER] User ${userId} application closed.`);
         }
-
-        const stopEmbed = new EmbedBuilder()
-            .setTitle('Application Closed 🛑')
-            .setDescription('Your application has been closed and all progress has been cleared.')
-            .setColor(0xFF0000);
-
         try {
-            if (interaction.isButton() || interaction.isStringSelectMenu()) {
-                await interaction.update({ embeds: [stopEmbed], components: [] });
-            } else if (interaction.replied || interaction.deferred) {
-                await interaction.followUp({ embeds: [stopEmbed], ephemeral: true });
-            } else {
-                await interaction.reply({ embeds: [stopEmbed] });
-            }
+            const stopEmbed = new EmbedBuilder().setTitle('Application Closed 🛑').setColor(0xFF0000);
+            if (interaction.isButton() || interaction.isStringSelectMenu()) await interaction.update({ embeds: [stopEmbed], components: [] });
+            else await interaction.reply({ embeds: [stopEmbed], ephemeral: true });
         } catch (e) {}
     },
 
     submitApplication: async (user, client) => {
         const apps = loadApps();
         const userId = user.id;
-        
         if (!apps[userId]) return;
 
         const finalData = apps[userId].answers;
-
-        // Clean up data
         delete apps[userId];
         saveApps(apps);
         saveCompletedApp(userId);
-        console.log(`[APP MANAGER] User ${userId} application submitted.`);
-
-        const gifUrl = 'https://share.creavite.co/6973ecb1bab97f02c66bd444.gif';
-        const finishEmbed = new EmbedBuilder()
-            .setTitle('Application Submitted')
-            .setDescription('✅ Your application has been submitted and logged. Our team will review it shortly.\n\nThank you for applying!')
-            .setImage(gifUrl)
-            .setColor(0x00FF00)
-            .setTimestamp();
 
         try {
             const dmChannel = await user.createDM();
-            await dmChannel.send({ embeds: [finishEmbed] });
-        } catch (error) {
-            console.error('[APP MANAGER] Error sending completion message:', error);
-        }
+            await dmChannel.send({ content: '✅ **Application Submitted!** Our team will review it shortly.' });
+        } catch (e) {}
 
-        // Send to log channel
-        const logChannel = client.channels.cache.get(LOG_CHANNEL_ID);
+        const logChannel = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
         if (logChannel) {
-            const now = new Date();
-            const formattedDate = now.toLocaleString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric', 
-                hour: 'numeric', 
-                minute: '2-digit', 
-                hour12: true 
-            });
-
             const logEmbed = new EmbedBuilder()
                 .setTitle('New MM Application')
-                .setThumbnail(user.displayAvatarURL())
                 .setColor(0x00AAFF)
-                .setDescription(`**Applicant:** <@${userId}> (${userId})\n**Submitted:** ${formattedDate}`)
-                .addFields(
-                    ...questions.map(q => ({ 
-                        name: q.label, 
-                        value: finalData[q.id] ? `\`\`\`\n${finalData[q.id]}\n\`\`\`` : '`N/A`' 
-                    }))
-                );
+                .setDescription(`**Applicant:** <@${userId}>\n**ID:** ${userId}`)
+                .addFields(questions.map(q => ({ name: q.label, value: `\`\`\`\n${finalData[q.id] || 'N/A'}\n\`\`\`` })));
             
-            const row = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId(`mm_app_accept_${userId}`)
-                        .setLabel('Accept')
-                        .setStyle(ButtonStyle.Success),
-                    new ButtonBuilder()
-                        .setCustomId(`mm_app_deny_${userId}`)
-                        .setLabel('Deny')
-                        .setStyle(ButtonStyle.Danger)
-                );
-
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId(`mm_app_accept_${userId}`).setLabel('Accept').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId(`mm_app_deny_${userId}`).setLabel('Deny').setStyle(ButtonStyle.Danger)
+            );
             await logChannel.send({ embeds: [logEmbed], components: [row] });
         }
     }
