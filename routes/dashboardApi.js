@@ -532,11 +532,12 @@ router.get('/users', requireStaff, async (req, res) => {
         const searchedMembers = await guild.members.search({ query: search, limit: 100 });
         membersArray = Array.from(searchedMembers.values());
       } else {
-        // Force a fetch if the cache is empty or small, otherwise use cache
-        // This handles cases where the bot hasn't cached members yet
-        if (guild.memberCount > 0 && guild.members.cache.size < guild.memberCount * 0.9) {
-          console.log(`[DASHBOARD] Cache incomplete (${guild.members.cache.size}/${guild.memberCount}). Fetching all members...`);
-          const fetchedMembers = await guild.members.fetch();
+        // Use cache by default to avoid Gateway rate limits (Opcode 8)
+        // Only fetch if cache is absolutely empty
+        if (guild.members.cache.size === 0 && guild.memberCount > 0) {
+          console.log(`[DASHBOARD] Cache empty. Fetching members for ${guild.name}...`);
+          // Use a smaller fetch or just rely on what we can get to avoid rate limits
+          const fetchedMembers = await guild.members.fetch({ limit: 1000 }).catch(() => guild.members.cache);
           membersArray = Array.from(fetchedMembers.values());
         } else {
           membersArray = Array.from(guild.members.cache.values());
@@ -544,7 +545,6 @@ router.get('/users', requireStaff, async (req, res) => {
       }
     } catch (fetchError) {
       console.error('[DASHBOARD] Member fetch error:', fetchError);
-      // Fallback to cache if fetch fails
       membersArray = Array.from(guild.members.cache.values());
     }
 
