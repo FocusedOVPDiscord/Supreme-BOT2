@@ -1,9 +1,17 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useState } from 'react';
+import ServerSelector from './ServerSelector';
 
 export default function Sidebar({ user, setIsAuthenticated }) {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(true);
+  const [selectedGuild, setSelectedGuild] = useState(null);
+
+  const handleGuildChange = (guild) => {
+    setSelectedGuild(guild);
+    // Trigger a page refresh to reload data for the new guild
+    window.location.reload();
+  };
 
   const handleLogout = async () => {
     await fetch('/api/dashboard/auth/logout', {
@@ -39,7 +47,7 @@ export default function Sidebar({ user, setIsAuthenticated }) {
   return (
     <div className={`${isOpen ? 'w-72' : 'w-20'} bg-slate-900/50 backdrop-blur-xl border-r border-white/10 text-white transition-all duration-500 flex flex-col z-50`}>
       {/* Header */}
-      <div className="p-6 flex items-center justify-between">
+      <div className="p-6 flex items-center justify-between border-b border-white/5">
         {isOpen && (
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center font-bold text-lg shadow-lg shadow-indigo-500/20">S</div>
@@ -55,6 +63,14 @@ export default function Sidebar({ user, setIsAuthenticated }) {
           </svg>
         </button>
       </div>
+
+      {/* Server Selector */}
+      {isOpen && (
+        <div className="px-4 py-4 border-b border-white/5">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 px-2">Server</p>
+          <ServerSelector selectedGuild={selectedGuild} onGuildChange={handleGuildChange} />
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">

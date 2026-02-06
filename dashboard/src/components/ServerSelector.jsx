@@ -1,0 +1,142 @@
+import { useEffect, useState } from 'react';
+
+export default function ServerSelector({ selectedGuild, onGuildChange }) {
+  const [guilds, setGuilds] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const fetchGuilds = async () => {
+      try {
+        const response = await fetch('/api/dashboard/guilds', {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setGuilds(data);
+          
+          // If no guild is selected, select the first one
+          if (!selectedGuild && data.length > 0) {
+            handleSelectGuild(data[0]);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch guilds:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchGuilds();
+  }, []);
+
+  const handleSelectGuild = async (guild) => {
+    try {
+      const response = await fetch('/api/dashboard/select-guild', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ guildId: guild.id }),
+      });
+
+      if (response.ok) {
+        onGuildChange(guild);
+        setIsOpen(false);
+      }
+    } catch (error) {
+      console.error('Failed to select guild:', error);
+    }
+  };
+
+  if (loading || guilds.length === 0) {
+    return null;
+  }
+
+  // If only one guild, don't show selector
+  if (guilds.length === 1 && !selectedGuild) {
+    handleSelectGuild(guilds[0]);
+    return null;
+  }
+
+  const currentGuild = selectedGuild || guilds[0];
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-3 w-full px-4 py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all group"
+      >
+        {currentGuild.icon ? (
+          <img
+            src={currentGuild.icon}
+            alt={currentGuild.name}
+            className="w-8 h-8 rounded-full"
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-indigo-600/20 flex items-center justify-center text-indigo-400 font-bold">
+            {currentGuild.name.charAt(0)}
+          </div>
+        )}
+        <div className="flex-1 text-left">
+          <p className="text-sm font-bold text-white truncate">{currentGuild.name}</p>
+          <p className="text-xs text-slate-500">{currentGuild.memberCount.toLocaleString()} members</p>
+        </div>
+        <svg
+          className={`w-5 h-5 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {isOpen && guilds.length > 1 && (
+        <div className="absolute top-full left-0 right-0 mt-2 glass rounded-2xl border border-white/10 shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in duration-200">
+          <div className="p-2 space-y-1 max-h-64 overflow-y-auto">
+            {guilds.map((guild) => (
+              <button
+                key={guild.id}
+                onClick={() => handleSelectGuild(guild)}
+                className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all ${
+                  currentGuild.id === guild.id
+                    ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30'
+                    : 'text-slate-300 hover:bg-white/5'
+                }`}
+              >
+                {guild.icon ? (
+                  <img
+                    src={guild.icon}
+                    alt={guild.name}
+                    className="w-7 h-7 rounded-full"
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-indigo-600/20 flex items-center justify-center text-indigo-400 font-bold text-xs">
+                    {guild.name.charAt(0)}
+                  </div>
+                )}
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-bold truncate">{guild.name}</p>
+                  <p className="text-xs text-slate-500">{guild.memberCount.toLocaleString()} members</p>
+                </div>
+                {currentGuild.id === guild.id && (
+                  <svg className="w-5 h-5 text-indigo-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Click outside to close */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+    </div>
+  );
+}

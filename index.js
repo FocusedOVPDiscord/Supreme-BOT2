@@ -184,26 +184,40 @@ client.login(TOKEN).catch(err => {
    EXPRESS SERVER & KEEP-ALIVE
 ================================ */
 const session = require('express-session');
+const FileStore = require('session-file-store')(session);
 const dashboardApi = require('./routes/dashboardApi');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-// Session middleware for authentication
+// Session middleware for authentication with persistent file store
+const sessionStore = new FileStore({
+    path: path.join(__dirname, 'data', 'sessions'),
+    ttl: 30 * 24 * 60 * 60, // 30 days in seconds
+    reapInterval: 3600, // Clean up expired sessions every hour
+    retries: 0
+});
+
 app.use(session({
+    store: sessionStore,
     secret: process.env.SESSION_SECRET || 'supreme-bot-secret-key-change-in-production',
     resave: false,
     saveUninitialized: false,
     cookie: { 
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days for trusted IPs
     }
 }));
+
+console.log('📦 [SESSION] File-based session store initialized (30-day persistence)');
 
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Trust proxy for correct IP detection (required for Koyeb)
+app.set('trust proxy', 1);
 
 // Store client in app locals for API routes
 app.locals.client = client;
