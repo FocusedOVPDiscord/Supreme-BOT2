@@ -207,11 +207,20 @@ router.get('/stats', requireAuth, async (req, res) => {
   const guild = getSelectedGuild(req);
   if (!guild) return res.status(404).json({ error: 'No server selected' });
 
+  const client = req.app.locals.client;
+
   res.json({
+    serverName: guild.name,
     totalMembers: guild.memberCount,
     onlineMembers: guild.members.cache.filter(m => m.presence?.status === 'online').size,
     boostCount: guild.premiumSubscriptionCount || 0,
-    roleCount: guild.roles.cache.size
+    channels: guild.channels.cache.size,
+    roles: guild.roles.cache.size,
+    uptime: process.uptime(),
+    botStatus: 'Online',
+    activeTickets: 0, // Placeholder
+    closedTickets: 0, // Placeholder
+    recentTickets: [] // Placeholder
   });
 });
 
