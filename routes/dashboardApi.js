@@ -269,29 +269,40 @@ router.get('/guilds', requireAuth, async (req, res) => {
     
     const guilds = [];
     
+    // Iterate through all guilds the bot is in
     for (const [guildId, guild] of client.guilds.cache) {
       try {
-        const member = await guild.members.fetch(userId).catch(() => null);
+        // Check if the user is in this guild and has staff permissions
+        // Use cache first to be fast and avoid rate limits
+        let member = guild.members.cache.get(userId);
+        if (!member) {
+          // If not in cache, fetch the specific member
+          member = await guild.members.fetch(userId).catch(() => null);
+        }
+
         if (member) {
           const userRoles = member.roles.cache.map(role => role.id);
           const isStaff = userRoles.some(roleId => STAFF_ROLE_IDS.includes(roleId));
           
+          // If the user is staff in this guild, add it to the list
           if (isStaff) {
             guilds.push({
               id: guild.id,
               name: guild.name,
-              icon: guild.iconURL(),
+              icon: guild.iconURL({ size: 128 }),
               memberCount: guild.memberCount
             });
           }
         }
       } catch (error) {
-        console.error(`Error fetching guild ${guildId}:`, error);
+        console.error(`Error checking permissions for guild ${guildId}:`, error);
       }
     }
     
+    console.log(`[DASHBOARD] Found ${guilds.length} authorized guilds for user ${req.session.user.username}`);
     res.json(guilds);
   } catch (error) {
+    console.error('[DASHBOARD] Guilds fetch error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -299,21 +310,50 @@ router.get('/guilds', requireAuth, async (req, res) => {
 /**
  * POST /api/dashboard/select-guild
  */
-router.post('/select-guild', requireAuth, (req, res) => {
+router.post('/select-guild', requireAuth, async (req, res) => {
   try {
     const { guildId } = req.body;
     const client = req.app.locals.client;
+    const userId = req.session.user.id;
     
     const guild = client.guilds.cache.get(guildId);
     if (!guild) {
       return res.status(404).json({ error: 'Guild not found' });
     }
+
+    // Verify user is still staff in this guild
+    let member = guild.members.cache.get(userId);
+    if (!member) {
+      member = await guild.members.fetch(userId).catch(() => null);
+    }
+
+    if (!member) {
+      return res.status(403).json({ error: 'You are not a member of this server' });
+    }
+
+    const userRoles = member.roles.cache.map(role => role.id);
+    const isStaff = userRoles.some(roleId => STAFF_ROLE_IDS.includes(roleId));
+
+    if (!isStaff) {
+      return res.status(403).json({ error: 'You do not have staff permissions in this server' });
+    }
     
+    // Update session with selected guild and new roles for this guild
     req.session.selectedGuildId = guildId;
-    console.log(`✅ User ${req.session.user.username} selected guild: ${guild.name}`);
+    req.session.user.roles = userRoles;
     
-    res.json({ success: true, guild: { id: guild.id, name: guild.name } });
+    console.log(`✅ User ${req.session.user.username} switched to guild: ${guild.name}`);
+    
+    // Save session explicitly to ensure it's ready for the next request
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err);
+        return res.status(500).json({ error: 'Failed to save session' });
+      }
+      res.json({ success: true, guild: { id: guild.id, name: guild.name } });
+    });
   } catch (error) {
+    console.error('[DASHBOARD] Select guild error:', error);
     res.status(500).json({ error: error.message });
   }
 });
