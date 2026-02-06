@@ -520,11 +520,30 @@ router.get('/users', requireStaff, async (req, res) => {
     const guild = getSelectedGuild(req);
     if (!guild) return res.status(404).json({ error: 'Guild not found' });
 
-    // Fetch members with a limit to avoid timeouts in large guilds
-    // If the guild is very large, we fetch the first 1000 members
-    const members = await guild.members.fetch({ limit: 1000 });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 40;
+    const search = req.query.search || '';
     
-    const users = members.map(m => {
+    let members;
+    if (search) {
+      // If searching, we use query to find specific members
+      members = await guild.members.search({ query: search, limit: 100 });
+    } else {
+      // Otherwise fetch all (cached) and paginate
+      members = await guild.members.fetch();
+    }
+
+    // Convert to array and sort by join date (newest first)
+    let membersArray = Array.from(members.values()).sort((a, b) => b.joinedTimestamp - a.joinedTimestamp);
+
+    const total = membersArray.length;
+    const totalPages = Math.ceil(total / limit);
+    const start = (page - 1) * limit;
+    const end = start + limit;
+    
+    const paginatedMembers = membersArray.slice(start, end);
+
+    const users = paginatedMembers.map(m => {
       const invData = inviteManager.getUserData(guild.id, m.id);
       return {
         id: m.id,
@@ -535,7 +554,17 @@ router.get('/users', requireStaff, async (req, res) => {
       };
     });
 
-    res.json(users);
+    res.json({
+      users,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
+    });
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ error: error.message });

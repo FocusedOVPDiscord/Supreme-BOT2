@@ -1,29 +1,40 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
 export default function Users() {
   const [users, setUsers] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
-  const [modAction, setModAction] = useState(null); // { type: 'warn' | 'kick' | 'ban' | 'mute', user: {} }
+  const [modAction, setModAction] = useState(null);
   const [reason, setReason] = useState('');
   const [processing, setProcessing] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  const fetchUsers = () => {
+  const fetchUsers = useCallback((page = 1, search = '') => {
     setLoading(true);
-    fetch('/api/dashboard/users', { credentials: 'include' })
+    const url = `/api/dashboard/users?page=${page}&limit=40&search=${encodeURIComponent(search)}`;
+    fetch(url, { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
-        setUsers(Array.isArray(data) ? data : []);
+        setUsers(Array.isArray(data.users) ? data.users : []);
+        setPagination(data.pagination || { page: 1, totalPages: 1, total: 0 });
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  };
+  }, []);
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    fetchUsers(1, searchTerm);
+  }, [fetchUsers]);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchUsers(1, searchTerm);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm, fetchUsers]);
 
   const handleModerate = async () => {
     if (!modAction || !reason) return;
@@ -40,7 +51,7 @@ export default function Users() {
         setMessage({ type: 'success', text: `Successfully ${modAction.type}ed ${modAction.user.username}` });
         setModAction(null);
         setReason('');
-        if (modAction.type !== 'warn') fetchUsers();
+        if (modAction.type !== 'warn') fetchUsers(pagination.page, searchTerm);
       } else {
         setMessage({ type: 'error', text: data.error || 'Action failed' });
       }
@@ -52,12 +63,7 @@ export default function Users() {
     }
   };
 
-  const filteredUsers = users.filter(u => 
-    u.username.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    u.id.includes(searchTerm)
-  );
-
-  if (loading) return (
+  if (loading && users.length === 0) return (
     <div className="flex items-center justify-center h-full">
       <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
     </div>
@@ -68,7 +74,7 @@ export default function Users() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-4xl font-black text-white tracking-tight">User <span className="gradient-text">Management</span></h1>
-          <p className="text-slate-400 mt-1">Monitor community members and invite statistics ({users.length} total).</p>
+          <p className="text-slate-400 mt-1">Monitor community members and invite statistics ({pagination.total} total).</p>
         </div>
         <div className="relative">
           <input 
@@ -103,8 +109,8 @@ export default function Users() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {filteredUsers.length > 0 ? (
-                filteredUsers.map(user => (
+              {users.length > 0 ? (
+                users.map(user => (
                   <tr key={user.id} className="hover:bg-white/5 transition-colors group">
                     <td className="px-8 py-5">
                       <div className="flex items-center gap-4">
@@ -166,12 +172,40 @@ export default function Users() {
               ) : (
                 <tr>
                   <td colSpan="5" className="px-8 py-20 text-center text-slate-500 font-medium">
-                    {searchTerm ? `No users found matching "${searchTerm}"` : 'No members found in this server.'}
+                    {loading ? 'Loading users...' : (searchTerm ? `No users found matching "${searchTerm}"` : 'No members found in this server.')}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
+        
+        {/* Pagination Controls */}
+        <div className="px-8 py-5 bg-white/5 border-t border-white/5 flex items-center justify-between">
+          <p className="text-sm text-slate-500">
+            Showing <span className="text-white font-bold">{users.length}</span> of <span className="text-white font-bold">{pagination.total}</span> members
+          </p>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => fetchUsers(pagination.page - 1, searchTerm)}
+              disabled={!pagination.hasPrev || loading}
+              className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm font-bold hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+              Previous
+            </button>
+            <div className="px-4 py-2 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 text-sm font-bold">
+              Page {pagination.page} of {pagination.totalPages}
+            </div>
+            <button 
+              onClick={() => fetchUsers(pagination.page + 1, searchTerm)}
+              disabled={!pagination.hasNext || loading}
+              className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm font-bold hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+            >
+              Next
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+            </button>
+          </div>
         </div>
       </div>
 
