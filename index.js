@@ -214,11 +214,23 @@ app.use('/api/dashboard', dashboardApi);
 // Serve static files for the React dashboard
 const dashboardDistPath = path.join(__dirname, 'dashboard', 'dist');
 if (fs.existsSync(dashboardDistPath)) {
-    app.use('/dashboard', express.static(dashboardDistPath));
+    // Serve static assets with a trailing slash redirect
+    app.use('/dashboard', express.static(dashboardDistPath, { index: false }));
     
+    // Handle the dashboard root specifically
+    app.get('/dashboard', (req, res) => {
+        res.sendFile(path.join(dashboardDistPath, 'index.html'));
+    });
+
     // SPA fallback: for any route under /dashboard, serve the dashboard's index.html
     app.get('/dashboard/*', (req, res) => {
-        res.sendFile(path.join(dashboardDistPath, 'index.html'));
+        // If it's a request for a file that doesn't exist, still serve index.html for React Router
+        const filePath = path.join(dashboardDistPath, req.params[0]);
+        if (fs.existsSync(filePath) && !req.path.endsWith('/')) {
+            res.sendFile(filePath);
+        } else {
+            res.sendFile(path.join(dashboardDistPath, 'index.html'));
+        }
     });
 }
 
