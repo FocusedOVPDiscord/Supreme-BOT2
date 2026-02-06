@@ -1,6 +1,6 @@
 const express = require('express');
 const axios = require('axios');
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, ChannelType } = require('discord.js');
 const router = express.Router();
 const storage = require('../commands/utility/storage.js');
 const inviteManager = require('../inviteManager.js');
@@ -207,7 +207,20 @@ router.get('/stats', requireAuth, async (req, res) => {
   const guild = getSelectedGuild(req);
   if (!guild) return res.status(404).json({ error: 'No server selected' });
 
-  const client = req.app.locals.client;
+  // Count active tickets by looking for channels in the ticket category
+  const ticketCategory = storage.get(guild.id, 'ticketCategory');
+  let activeTickets = 0;
+  let recentTickets = [];
+
+  if (ticketCategory) {
+    const channels = guild.channels.cache.filter(c => c.parentId === ticketCategory && c.type === ChannelType.GuildText);
+    activeTickets = channels.size;
+    recentTickets = Array.from(channels.values()).slice(0, 5).map(c => ({
+      id: c.id,
+      title: c.name,
+      status: 'Active'
+    }));
+  }
 
   res.json({
     serverName: guild.name,
@@ -218,10 +231,60 @@ router.get('/stats', requireAuth, async (req, res) => {
     roles: guild.roles.cache.size,
     uptime: process.uptime(),
     botStatus: 'Online',
-    activeTickets: 0, // Placeholder
+    activeTickets: activeTickets,
     closedTickets: 0, // Placeholder
-    recentTickets: [] // Placeholder
+    recentTickets: recentTickets
   });
+});
+
+/**
+ * GET /api/dashboard/guild-data
+ */
+router.get('/guild-data', requireAuth, async (req, res) => {
+  const guild = getSelectedGuild(req);
+  if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+  res.json({
+    roles: guild.roles.cache.filter(r => r.name !== '@everyone').map(r => ({
+      id: r.id,
+      name: r.name,
+      color: r.hexColor
+    })),
+    channels: guild.channels.cache.filter(c => c.type === ChannelType.GuildText).map(c => ({
+      id: c.id,
+      name: c.name
+    }))
+  });
+});
+
+/**
+ * GET /api/dashboard/settings
+ */
+router.get('/settings', requireAuth, async (req, res) => {
+  const guild = getSelectedGuild(req);
+  if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+  res.json({
+    autoRole: storage.get(guild.id, 'autoRole') || '',
+    welcomeChannel: storage.get(guild.id, 'welcomeChannel') || '',
+    ticketCategory: storage.get(guild.id, 'ticketCategory') || ''
+  });
+});
+
+/**
+ * POST /api/dashboard/settings
+ */
+router.post('/settings', requireAuth, async (req, res) => {
+  const guild = getSelectedGuild(req);
+  if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+  const { autoRole, welcomeChannel, ticketCategory } = req.body;
+  
+  if (autoRole !== undefined) await storage.set(guild.id, 'autoRole', autoRole);
+  if (welcomeChannel !== undefined) await storage.set(guild.id, 'welcomeChannel', welcomeChannel);
+  if (ticketCategory !== undefined) await storage.set(guild.id, 'ticketCategory', ticketCategory);
+
+  res.json({ success: true });
 });
 
 /**
