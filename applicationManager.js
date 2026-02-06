@@ -165,7 +165,13 @@ module.exports = {
         saveApps(apps);
 
         if (currentStep === 0 && interaction) {
-            try { await interaction.editReply({ content: 'Application Started! ✅', embeds: [], components: [] }); } catch (e) {}
+            try { 
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply({ content: 'Application Started! ✅', embeds: [], components: [] }); 
+                }
+            } catch (e) {
+                console.warn('[APP MANAGER] Could not edit start message:', e.message);
+            }
         }
 
         if (currentStep >= questions.length) {
@@ -222,13 +228,20 @@ module.exports = {
 
         const currentStep = apps[userId].step;
         const question = questions[currentStep];
+        
+        // Prevent duplicate processing if user clicks multiple times
+        if (apps[userId].step !== currentStep) return;
+
         apps[userId].answers[question.id] = interaction.values[0];
         saveApps(apps);
 
         try {
             await interaction.update({ content: `✅ Selected: **${interaction.values[0]}**`, embeds: [], components: [] });
             await module.exports.askNextQuestion(interaction.user, client, currentStep + 1);
-        } catch (e) {}
+        } catch (e) {
+            if (e.code === 10062 || e.code === 40060) return;
+            console.error('[APP MANAGER] Select Error:', e.message);
+        }
     },
 
     stopApplication: async (interaction) => {

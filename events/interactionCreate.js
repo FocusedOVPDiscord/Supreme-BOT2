@@ -191,12 +191,13 @@ module.exports = {
 
             if (customId === 'verify_user') {
                 try {
-                    if (member.roles.cache.has(CONFIG.VERIFIED_ROLE_ID)) return interaction.reply({ content: '⚠️ Already verified!', flags: [MessageFlags.Ephemeral] });
+                    if (member.roles.cache.has(CONFIG.VERIFIED_ROLE_ID)) return interaction.reply({ content: '⚠️ Already verified!', flags: [MessageFlags.Ephemeral] }).catch(() => {});
                     await member.roles.add(CONFIG.VERIFIED_ROLE_ID);
                     if (member.roles.cache.has(CONFIG.UNVERIFIED_ROLE_ID)) await member.roles.remove(CONFIG.UNVERIFIED_ROLE_ID);
-                    return interaction.reply({ content: '✅ Verified!', flags: [MessageFlags.Ephemeral] });
+                    return interaction.reply({ content: '✅ Verified!', flags: [MessageFlags.Ephemeral] }).catch(() => {});
                 } catch (error) {
-                    return interaction.reply({ content: '❌ Failed to update roles.', flags: [MessageFlags.Ephemeral] });
+                    if (error.code === 10062) return;
+                    return interaction.reply({ content: '❌ Failed to update roles.', flags: [MessageFlags.Ephemeral] }).catch(() => {});
                 }
             }
 
@@ -225,16 +226,34 @@ module.exports = {
 
             if (customId === 'close_ticket') {
                 const canClose = member.roles.cache.some(role => CONFIG.CAN_CLOSE_ROLES.includes(role.id));
-                if (!canClose) return await interaction.reply({ content: '❌ No permission.', flags: [MessageFlags.Ephemeral] });
-                if (closingTickets.has(channel.id)) return await interaction.reply({ content: '⚠️ Already closing.', flags: [MessageFlags.Ephemeral] });
+                if (!canClose) return await interaction.reply({ content: '❌ No permission.', flags: [MessageFlags.Ephemeral] }).catch(() => {});
+                if (closingTickets.has(channel.id)) return await interaction.reply({ content: '⚠️ Already closing.', flags: [MessageFlags.Ephemeral] }).catch(() => {});
+                
                 closingTickets.add(channel.id);
                 try { await channel.permissionOverwrites.edit(guild.id, { SendMessages: false }); } catch (e) {}
+                
                 const closeEmbed = new EmbedBuilder().setAuthor({ name: 'Supreme', iconURL: CONFIG.SUPREME_LOGO }).setTitle('Ticket Closed').setDescription(`Ticket Closed By ${user}\n\n📋 Generating transcript...\nDeleting in 10s.`).setColor('#FF0000').setTimestamp();
-                await interaction.reply({ embeds: [closeEmbed] });
+                
+                try {
+                    await interaction.reply({ embeds: [closeEmbed] });
+                } catch (error) {
+                    if (error.code === 10062) console.warn('⚠️ [TICKET] Interaction expired before closing reply.');
+                    else console.error('❌ [TICKET ERROR]:', error);
+                }
+
                 let ticketData = {};
                 try { if (channel.topic) ticketData = JSON.parse(channel.topic); } catch (e) {}
                 try { await generateAndSendTranscript(channel, user, ticketData); } catch (error) {}
-                setTimeout(async () => { try { if (guild.channels.cache.has(channel.id)) await channel.delete(); } finally { closingTickets.delete(channel.id); } }, 10000);
+                
+                setTimeout(async () => { 
+                    try { 
+                        if (guild.channels.cache.has(channel.id)) await channel.delete(); 
+                    } catch (e) {
+                        console.error('❌ [TICKET DELETE ERROR]:', e.message);
+                    } finally { 
+                        closingTickets.delete(channel.id); 
+                    } 
+                }, 10000);
                 return;
             }
         }
