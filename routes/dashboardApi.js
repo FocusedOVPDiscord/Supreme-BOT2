@@ -544,18 +544,22 @@ router.get('/users', requireStaff, async (req, res) => {
     
     let membersArray = [];
     
+    // Use the actual member count from the guild for accurate pagination
+    const totalMembersInGuild = guild.memberCount;
+    
     try {
       if (search) {
         // Search Discord API directly for specific users
         const searchedMembers = await guild.members.search({ query: search, limit: limit });
         membersArray = Array.from(searchedMembers.values());
       } else {
-        // If cache is empty or very small, fetch a chunk of members
-        // This ensures the list is NOT empty while staying under rate limits
-        if (guild.members.cache.size < limit || (page === 1 && guild.members.cache.size < guild.memberCount * 0.05)) {
-          console.log(`[DASHBOARD] Fetching member chunk for ${guild.name} (Page: ${page})...`);
+        // If we don't have enough members in cache for the requested page, fetch more
+        // This ensures we can show members even if the cache isn't fully populated
+        const requiredCacheSize = page * limit;
+        if (guild.members.cache.size < requiredCacheSize && guild.members.cache.size < totalMembersInGuild) {
+          console.log(`[DASHBOARD] Fetching more members for ${guild.name} (Need: ${requiredCacheSize}, Cache: ${guild.members.cache.size})...`);
           try {
-            // Fetch a limited number of members to populate the list
+            // Fetch in chunks of 200 to be safe but effective
             await guild.members.fetch({ limit: 200 }); 
           } catch (e) {
             console.warn(`[DASHBOARD] Chunk fetch failed: ${e.message}`);
@@ -571,11 +575,14 @@ router.get('/users', requireStaff, async (req, res) => {
     // Sort by join date (newest first)
     membersArray.sort((a, b) => (b.joinedTimestamp || 0) - (a.joinedTimestamp || 0));
 
-    const total = membersArray.length;
+    // For total count: if searching, use the search result count. 
+    // Otherwise, use the actual guild member count for accurate "1 of X" display.
+    const total = search ? membersArray.length : totalMembersInGuild;
     const totalPages = Math.ceil(total / limit);
     const start = (page - 1) * limit;
     const end = start + limit;
     
+    // Slice from the current cache
     const paginatedMembers = membersArray.slice(start, end);
 
     const users = paginatedMembers.map(m => {
