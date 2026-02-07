@@ -1,56 +1,11 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
-const { getPath, DATA_DIR } = require('./pathConfig');
+const { query } = require('./utils/db');
 
-const DATA_PATH = getPath('active_apps.json');
-const COMPLETED_APPS_PATH = getPath('completed_apps.json');
 const LOG_CHANNEL_ID = '1464393139417645203';
 
-/**
- * Safely loads JSON data from a file
- */
-function safeLoadJSON(filePath, defaultValue = {}) {
-    try {
-        if (fs.existsSync(filePath)) {
-            const content = fs.readFileSync(filePath, 'utf8');
-            return content ? JSON.parse(content) : defaultValue;
-        }
-    } catch (e) {
-        console.error(`[APP MANAGER] Error loading ${path.basename(filePath)}:`, e.message);
-    }
-    return defaultValue;
-}
-
-/**
- * Safely saves JSON data to a file with atomic write
- */
-function safeSaveJSON(filePath, data) {
-    try {
-        if (!fs.existsSync(DATA_DIR)) {
-            fs.mkdirSync(DATA_DIR, { recursive: true });
-        }
-        const tempPath = `${filePath}.tmp`;
-        fs.writeFileSync(tempPath, JSON.stringify(data, null, 2));
-        fs.renameSync(tempPath, filePath);
-        return true;
-    } catch (e) {
-        console.error(`[APP MANAGER] Error saving ${path.basename(filePath)}:`, e.message);
-        return false;
-    }
-}
-
-function loadApps() { return safeLoadJSON(DATA_PATH, {}); }
-function saveApps(apps) { return safeSaveJSON(DATA_PATH, apps); }
-function loadCompletedApps() { return safeLoadJSON(COMPLETED_APPS_PATH, []); }
-
-function saveCompletedApp(userId) {
-    const completed = loadCompletedApps();
-    if (!completed.includes(userId)) {
-        completed.push(userId);
-        safeSaveJSON(COMPLETED_APPS_PATH, completed);
-    }
-}
+// In-memory cache for active applications (not submitted yet)
+// We keep this in memory as it's transient, but once submitted, it goes to TiDB
+const activeAppsCache = new Map();
 
 const questions = [
     { 
@@ -101,12 +56,22 @@ const questions = [
 ];
 
 module.exports = {
+    async isAlreadyApplied(userId) {
+        try {
+            const results = await query('SELECT 1 FROM applications WHERE user_id = ?', [userId]);
+            return results.length > 0;
+        } catch (error) {
+            console.error('[APP MANAGER] Error checking application status:', error);
+            return false;
+        }
+    },
+
     startDMApplication: async (interaction) => {
         const userId = interaction.user.id;
         console.log(`[APP MANAGER] User ${userId} starting application.`);
 
-        const completed = loadCompletedApps();
-        if (completed.includes(userId)) {
+        const applied = await module.exports.isAlreadyApplied(userId);
+        if (applied) {
             const completedEmbed = new EmbedBuilder()
                 .setTitle('Application Already Submitted')
                 .setDescription('❌ You have already submitted an application.')
@@ -114,8 +79,7 @@ module.exports = {
             return await interaction.reply({ embeds: [completedEmbed], ephemeral: true }).catch(() => null);
         }
 
-        const apps = loadApps();
-        if (apps[userId]) {
+        if (activeAppsCache.has(userId)) {
             const progressEmbed = new EmbedBuilder()
                 .setTitle('Application Already In Progress')
                 .setDescription('⚠️ Check your DMs or close the current one first.')
@@ -123,8 +87,7 @@ module.exports = {
             return await interaction.reply({ embeds: [progressEmbed], ephemeral: true }).catch(() => null);
         }
 
-        apps[userId] = { answers: {}, step: 0, startTime: Date.now(), messageId: null };
-        saveApps(apps);
+        activeAppsCache.set(userId, { answers: {}, step: 0, startTime: Date.now(), messageId: null });
 
         try {
             const startEmbed = new EmbedBuilder()
@@ -140,29 +103,24 @@ module.exports = {
             const dmChannel = await interaction.user.createDM();
             const dmMessage = await dmChannel.send({ embeds: [startEmbed], components: [startRow] });
             
-            const currentApps = loadApps();
-            if (currentApps[userId]) {
-                currentApps[userId].messageId = dmMessage.id;
-                saveApps(currentApps);
+            if (activeAppsCache.has(userId)) {
+                activeAppsCache.get(userId).messageId = dmMessage.id;
             }
 
             await interaction.reply({ content: '✅ Check your DMs!', ephemeral: true }).catch(() => null);
         } catch (error) {
-            const currentApps = loadApps();
-            delete currentApps[userId];
-            saveApps(currentApps);
+            activeAppsCache.delete(userId);
             console.error('[APP MANAGER] DM Error:', error.message);
             await interaction.reply({ content: '❌ Could not send DM. Please open your DMs.', ephemeral: true }).catch(() => null);
         }
     },
 
     askNextQuestion: async (user, client, currentStep = 0, interaction = null) => {
-        const apps = loadApps();
         const userId = user.id;
-        if (!apps[userId]) return;
+        const app = activeAppsCache.get(userId);
+        if (!app) return;
 
-        apps[userId].step = currentStep;
-        saveApps(apps);
+        app.step = currentStep;
 
         if (currentStep === 0 && interaction) {
             try { 
@@ -205,17 +163,16 @@ module.exports = {
     handleDMResponse: async (message, client) => {
         if (message.author.bot || message.guild) return;
         const userId = message.author.id;
-        const apps = loadApps();
-        if (!apps[userId]) return;
+        const app = activeAppsCache.get(userId);
+        if (!app) return;
 
-        const currentStep = apps[userId].step;
+        const currentStep = app.step;
         if (currentStep < 0 || currentStep >= questions.length) return;
 
         const question = questions[currentStep];
         if (question.type === 'select') return;
 
-        apps[userId].answers[question.id] = message.content.trim() || 'N/A';
-        saveApps(apps);
+        app.answers[question.id] = message.content.trim() || 'N/A';
 
         await message.reply({ content: '✅ Recorded!' }).catch(() => null);
         await module.exports.askNextQuestion(message.author, client, currentStep + 1);
@@ -223,17 +180,16 @@ module.exports = {
 
     handleSelectResponse: async (interaction, client) => {
         const userId = interaction.user.id;
-        const apps = loadApps();
-        if (!apps[userId]) return;
+        const app = activeAppsCache.get(userId);
+        if (!app) return;
 
-        const currentStep = apps[userId].step;
+        const currentStep = app.step;
         const question = questions[currentStep];
         
-        // Prevent duplicate processing if user clicks multiple times
-        if (apps[userId].step !== currentStep) return;
+        // Prevent duplicate processing
+        if (app.step !== currentStep) return;
 
-        apps[userId].answers[question.id] = interaction.values[0];
-        saveApps(apps);
+        app.answers[question.id] = interaction.values[0];
 
         try {
             await interaction.update({ content: `✅ Selected: **${interaction.values[0]}**`, embeds: [], components: [] });
@@ -246,11 +202,7 @@ module.exports = {
 
     stopApplication: async (interaction) => {
         const userId = interaction.user.id;
-        const apps = loadApps();
-        if (apps[userId]) {
-            delete apps[userId];
-            saveApps(apps);
-        }
+        activeAppsCache.delete(userId);
         try {
             const stopEmbed = new EmbedBuilder().setTitle('Application Closed 🛑').setColor(0xFF0000);
             if (interaction.isButton() || interaction.isStringSelectMenu()) await interaction.update({ embeds: [stopEmbed], components: [] });
@@ -259,14 +211,22 @@ module.exports = {
     },
 
     submitApplication: async (user, client) => {
-        const apps = loadApps();
         const userId = user.id;
-        if (!apps[userId]) return;
+        const app = activeAppsCache.get(userId);
+        if (!app) return;
 
-        const finalData = apps[userId].answers;
-        delete apps[userId];
-        saveApps(apps);
-        saveCompletedApp(userId);
+        const finalData = app.answers;
+        activeAppsCache.delete(userId);
+
+        try {
+            // Save to TiDB
+            await query(
+                'INSERT INTO applications (user_id, status, submitted_at, answers) VALUES (?, ?, ?, ?)',
+                [userId, 'pending', Date.now(), JSON.stringify(finalData)]
+            );
+        } catch (error) {
+            console.error('[APP MANAGER] Error saving application to TiDB:', error);
+        }
 
         try {
             const dmChannel = await user.createDM();

@@ -105,13 +105,11 @@ module.exports = {
                 const details = interaction.fields.getTextInputValue('trade_details');
 
                 try {
-                    const counterPath = getPath('counter.json');
-                    let counterData = { ticketCount: 0 };
-                    if (fs.existsSync(counterPath)) counterData = JSON.parse(fs.readFileSync(counterPath, 'utf8'));
-                    counterData.ticketCount++;
-                    fs.writeFileSync(counterPath, JSON.stringify(counterData, null, 2));
+                    let ticketCount = parseInt(storage.get(guild.id, 'ticketCount')) || 0;
+                    ticketCount++;
+                    await storage.set(guild.id, 'ticketCount', ticketCount);
                     
-                    const ticketNumber = counterData.ticketCount.toString().padStart(4, '0');
+                    const ticketNumber = ticketCount.toString().padStart(4, '0');
                     const ticketCategoryId = storage.get(guild.id, 'ticketCategory') || CONFIG.TICKET_CATEGORY_ID;
                     const ticketChannel = await guild.channels.create({
                         name: `ticket-${ticketNumber}`,

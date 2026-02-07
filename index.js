@@ -92,6 +92,14 @@ try {
                     last_login DATETIME
                 )
             `);
+            await query(`
+                CREATE TABLE IF NOT EXISTS applications (
+                    user_id VARCHAR(255) PRIMARY KEY,
+                    status VARCHAR(50) DEFAULT 'pending',
+                    submitted_at BIGINT,
+                    answers JSON
+                )
+            `);
             console.log('✅ [STARTUP] TiDB Schema ready.');
         } catch (dbErr) {
             console.error('❌ [STARTUP] TiDB Schema initialization failed:', dbErr);
