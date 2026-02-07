@@ -27,25 +27,44 @@ module.exports = {
         try {
             const newInvites = await member.guild.invites.fetch();
             const cachedInvites = member.client.invites.get(guildId) || new Map();
-            const invite = newInvites.find(i => i.uses > (cachedInvites.get(i.code) || 0));
             
+            // 1. Find the invite used
+            let invite = newInvites.find(i => i.uses > (cachedInvites.get(i.code) || 0));
+            
+            // 2. Check for Vanity URL if no regular invite was found
+            let isVanity = false;
+            if (!invite && member.guild.features.includes('VANITY_URL')) {
+                const vanityData = await member.guild.fetchVanityData().catch(() => null);
+                if (vanityData) {
+                    const cachedVanityUses = cachedInvites.get('VANITY') || 0;
+                    if (vanityData.uses > cachedVanityUses) {
+                        isVanity = true;
+                        inviterMention = "Vanity URL (Custom)";
+                        // Update cache for vanity
+                        cachedInvites.set('VANITY', vanityData.uses);
+                    }
+                }
+            }
+
+            // Update cache for all regular invites
             newInvites.forEach(i => cachedInvites.set(i.code, i.uses));
             member.client.invites.set(guildId, cachedInvites);
 
-            if (invite && invite.inviter) {
-                const inviterId = invite.inviter.id;
-                inviterMention = `<@${inviterId}>`;
+            // 3. Handle Attribution
+            if (invite || isVanity) {
+                const inviterId = isVanity ? "VANITY" : (invite.inviter ? invite.inviter.id : "UNKNOWN");
+                if (!isVanity && inviterId !== "UNKNOWN") {
+                    inviterMention = `<@${inviterId}>`;
+                }
 
                 const isFake = inviteManager.isFakeMember(member);
-                
-                // GLOBAL ANTIFARM: Check if this user has EVER joined this guild before
                 const joinedBefore = await inviteManager.hasJoinedBefore(guildId, member.id);
                 
-                // ALWAYS record/update the join and RESET has_left to 0 for this new session
+                // ALWAYS record the join and RESET has_left
                 await inviteManager.recordJoin(guildId, member.id, inviterId, isFake);
 
                 if (!joinedBefore) {
-                    // Only increment stats for the FIRST time they join
+                    // Credit the inviter (or VANITY user)
                     const userData = await inviteManager.getUserData(guildId, inviterId);
                     if (isFake) {
                         userData.fake++;
@@ -53,13 +72,13 @@ module.exports = {
                         userData.regular++;
                     }
                     await inviteManager.updateUser(guildId, inviterId, userData);
-                    console.log(`[INVITES] New member ${member.user.tag} joined. Credited to ${inviterId}.`);
+                    console.log(`[INVITES] New member ${member.user.tag} joined via ${isVanity ? 'Vanity' : inviterId}.`);
                 } else {
-                    console.log(`[INVITES] Returning member ${member.user.tag} joined. No new invite credit given (Antifarm). "Left" status reset.`);
+                    console.log(`[INVITES] Returning member ${member.user.tag} joined. No new credit (Antifarm).`);
                 }
             }
         } catch (e) { 
-            console.error('[INVITES] Error:', e); 
+            console.error('[INVITES] Error tracking join:', e); 
         }
 
         // --- 3. WELCOME MESSAGE LOGIC ---

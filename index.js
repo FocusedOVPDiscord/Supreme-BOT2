@@ -172,7 +172,18 @@ client.once('ready', async () => {
             try {
                 // Fetch invites
                 const invites = await guild.invites.fetch();
-                client.invites.set(guild.id, new Map(invites.map(inv => [inv.code, inv.uses])));
+                const inviteMap = new Map(invites.map(inv => [inv.code, inv.uses]));
+                
+                // Fetch vanity data if available
+                if (guild.features.includes('VANITY_URL')) {
+                    const vanityData = await guild.fetchVanityData().catch(() => null);
+                    if (vanityData) {
+                        inviteMap.set('VANITY', vanityData.uses);
+                        console.log(`📦 [CACHE] Loaded Vanity URL uses (${vanityData.uses}) for ${guild.name}`);
+                    }
+                }
+                
+                client.invites.set(guild.id, inviteMap);
                 console.log(`📦 [CACHE] Loaded ${invites.size} invites for ${guild.name}`);
 
                 // Optimization: Don't fetch all members on startup to avoid rate limits
