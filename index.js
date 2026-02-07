@@ -12,6 +12,7 @@ const express = require('express');
 const axios = require('axios');
 const { initializeDataDirectory } = require('./dataInit');
 const { query } = require('./utils/db');
+const { fixDatabase } = require('./fix_db');
 require('dotenv').config();
 
 // --- CRASH RECOVERY ---
@@ -102,6 +103,9 @@ try {
                 )
             `);
             console.log('✅ [STARTUP] TiDB Schema ready.');
+            
+            // Run migration to add missing columns if table already existed
+            await fixDatabase();
         } catch (dbErr) {
             console.error('❌ [STARTUP] TiDB Schema initialization failed:', dbErr);
         }
