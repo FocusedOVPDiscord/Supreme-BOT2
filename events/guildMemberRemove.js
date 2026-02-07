@@ -20,8 +20,7 @@ module.exports = {
             const inviterId = joinData.inviterId;
             const userData = await inviteManager.getUserData(guildId, inviterId);
             
-            // Decrease "regular" and increase "left" for non-fake members
-            if (userData.regular > 0) userData.regular--;
+            // Increase "left" count for non-fake members (Regular count remains unchanged)
             userData.left++;
             
             // Update the inviter's stats
