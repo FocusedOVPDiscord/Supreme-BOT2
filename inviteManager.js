@@ -111,17 +111,40 @@ class InviteManager {
     async recordLeave(guildId, userId) {
         try {
             // We use a strict check: only update if has_left is currently 0.
-            // This returns the number of affected rows.
             const result = await query(
                 'UPDATE join_history SET has_left = 1 WHERE guild_id = ? AND user_id = ? AND has_left = 0',
                 [guildId, userId]
             );
-            // If affectedRows is 1, it means this was the FIRST time they left.
-            // If affectedRows is 0, they already left before.
             return result.affectedRows > 0;
         } catch (error) {
             console.error('Error recording leave in TiDB:', error);
             return false;
+        }
+    }
+
+    async syncUserInvites(guildId, userId) {
+        try {
+            // Count actual regular and left from join_history
+            const stats = await query(
+                'SELECT COUNT(*) as total, SUM(CASE WHEN has_left = 1 THEN 1 ELSE 0 END) as left_count, SUM(CASE WHEN is_fake = 1 THEN 1 ELSE 0 END) as fake_count FROM join_history WHERE guild_id = ? AND inviter_id = ?',
+                [guildId, userId]
+            );
+
+            if (stats.length > 0) {
+                const row = stats[0];
+                const regular = (row.total || 0) - (row.fake_count || 0);
+                const left = row.left_count || 0;
+                const fake = row.fake_count || 0;
+
+                // Update the main invites table with these REAL numbers
+                await query(
+                    'UPDATE invites SET regular = ?, left_count = ?, fake = ? WHERE guild_id = ? AND user_id = ?',
+                    [regular, left, fake, guildId, userId]
+                );
+                console.log(`[SYNC] Synced stats for ${userId}: ${regular} reg, ${left} left, ${fake} fake`);
+            }
+        } catch (error) {
+            console.error('Error syncing user invites:', error);
         }
     }
 

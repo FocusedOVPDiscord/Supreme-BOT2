@@ -64,17 +64,14 @@ module.exports = {
                 await inviteManager.recordJoin(guildId, member.id, inviterId, isFake);
 
                 if (!joinedBefore) {
-                    // Credit the inviter (or VANITY user)
-                    const userData = await inviteManager.getUserData(guildId, inviterId);
-                    if (isFake) {
-                        userData.fake++;
-                    } else {
-                        userData.regular++;
-                    }
-                    await inviteManager.updateUser(guildId, inviterId, userData);
-                    console.log(`[INVITES] New member ${member.user.tag} joined via ${isVanity ? 'Vanity' : inviterId}.`);
+                    // Credit the inviter and sync stats to ensure accuracy
+                    await inviteManager.syncUserInvites(guildId, inviterId);
+                    console.log(`[INVITES] New member ${member.user.tag} joined via ${isVanity ? 'Vanity' : inviterId}. Stats synced.`);
                 } else {
-                    console.log(`[INVITES] Returning member ${member.user.tag} joined. No new credit (Antifarm).`);
+                    // Still sync stats for the inviter who originally invited them, 
+                    // just in case their 'left' count needs healing.
+                    await inviteManager.syncUserInvites(guildId, inviterId);
+                    console.log(`[INVITES] Returning member ${member.user.tag} joined. Stats synced (Antifarm).`);
                 }
             }
         } catch (e) { 

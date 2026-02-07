@@ -32,12 +32,13 @@ module.exports = {
                 return;
             }
 
-            // 3. INCREMENT LEFT:
-            // Since we successfully claimed the lock, we now increment the inviter's count.
+            // 3. SYNC STATS:
+            // Instead of just incrementing, we trigger a full sync of the inviter's stats.
+            // This will RE-COUNT the actual people who have left and fix any previous "farmed" numbers.
             const inviterId = joinData.inviterId;
-            await inviteManager.updateUser(guildId, inviterId, { left: 1, left_increment: true });
+            await inviteManager.syncUserInvites(guildId, inviterId);
             
-            console.log(`[INVITES] SUCCESS: ${member.user.tag} left. Inviter ${inviterId} left count incremented (Atomic Lock applied).`);
+            console.log(`[INVITES] SUCCESS: ${member.user.tag} left. Inviter ${inviterId} stats synchronized and healed.`);
         } catch (error) {
             console.error('[INVITES ERROR] Fatal error in guildMemberRemove:', error);
         }
