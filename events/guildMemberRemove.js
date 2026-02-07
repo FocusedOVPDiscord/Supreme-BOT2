@@ -18,15 +18,9 @@ module.exports = {
             }
 
             const inviterId = joinData.inviterId;
-            const userData = await inviteManager.getUserData(guildId, inviterId);
             
-            // Increment "Left" count only for non-fake members
-            userData.left++;
-            
-            // Update the inviter's stats
-            await inviteManager.updateUser(guildId, inviterId, userData);
-            
-            console.log(`[INVITES] Real member ${member.user.tag} left. Inviter ${inviterId} now has ${userData.left} left.`);
+            // Log the member leaving without auto-incrementing the "Left" count
+            console.log(`[INVITES] Real member ${member.user.tag} left. Invited by ${inviterId}. Left count NOT auto-incremented.`);
         }
     },
 };
