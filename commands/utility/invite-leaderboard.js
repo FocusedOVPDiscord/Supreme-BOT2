@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, MessageFlags } = require('discord.js');
 const { query } = require('../../utils/db');
 
 module.exports = {
@@ -8,6 +8,10 @@ module.exports = {
     async execute(interaction) {
         const guildId = interaction.guild.id;
 
+        // Defer reply immediately to prevent "Unknown interaction" timeout (10062)
+        // especially when TiDB might take a moment to respond
+        await interaction.deferReply();
+
         try {
             // Fetch top inviters from TiDB
             const results = await query(
@@ -16,7 +20,7 @@ module.exports = {
             );
 
             if (!results || results.length === 0) {
-                return interaction.reply({ content: 'No invite data found for this server.', ephemeral: true });
+                return interaction.editReply({ content: 'No invite data found for this server.' });
             }
 
             const allUsers = results
@@ -40,7 +44,7 @@ module.exports = {
                 .sort((a, b) => b.total - a.total);
 
             if (allUsers.length === 0) {
-                return interaction.reply({ content: 'The leaderboard is currently empty.', ephemeral: true });
+                return interaction.editReply({ content: 'The leaderboard is currently empty.' });
             }
 
             const itemsPerPage = 10;
@@ -81,7 +85,7 @@ module.exports = {
                     .setDisabled(totalPages <= 1)
             );
 
-            const response = await interaction.reply({
+            const response = await interaction.editReply({
                 embeds: [generateEmbed(0)],
                 components: totalPages > 1 ? [row] : []
             });
@@ -95,7 +99,7 @@ module.exports = {
 
             collector.on('collect', async (i) => {
                 if (i.user.id !== interaction.user.id) {
-                    return i.reply({ content: 'You cannot use these buttons.', ephemeral: true }).catch(() => {});
+                    return i.reply({ content: 'You cannot use these buttons.', flags: [MessageFlags.Ephemeral] }).catch(() => {});
                 }
 
                 if (i.customId === 'prev') {
@@ -141,7 +145,8 @@ module.exports = {
 
         } catch (error) {
             console.error('Error fetching leaderboard from TiDB:', error);
-            await interaction.reply({ content: 'An error occurred while fetching the leaderboard.', ephemeral: true });
+            // If we already deferred, we must use editReply
+            await interaction.editReply({ content: 'An error occurred while fetching the leaderboard.' });
         }
     },
 };

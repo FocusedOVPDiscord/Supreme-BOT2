@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
 const inviteManager = require('../../inviteManager.js');
 
 module.exports = {
@@ -15,6 +15,7 @@ module.exports = {
                 .setDescription('The amount of bonus invites to add (use negative numbers to remove)')
                 .setRequired(true)),
     async execute(interaction) {
+        await interaction.deferReply();
         try {
             const targetUser = interaction.options.getUser('user');
             const amount = interaction.options.getInteger('amount');
@@ -44,12 +45,11 @@ module.exports = {
                 .setFooter({ text: `Action performed by ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
                 .setTimestamp();
 
-            await interaction.reply({ embeds: [bonusEmbed] });
+            await interaction.editReply({ embeds: [bonusEmbed] });
         } catch (error) {
             console.error('Error updating bonus invites:', error);
-            await interaction.reply({ 
-                content: 'There was an error trying to update bonus invites.', 
-                ephemeral: true 
+            await interaction.editReply({ 
+                content: 'There was an error trying to update bonus invites.'
             });
         }
     },

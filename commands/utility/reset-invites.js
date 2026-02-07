@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const inviteManager = require('../../inviteManager.js');
 
 module.exports = {
@@ -7,8 +7,9 @@ module.exports = {
         .setDescription('Resets all invite statistics for the entire server.')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
     async execute(interaction) {
+        await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
         const guildId = interaction.guild.id;
         await inviteManager.resetAll(guildId);
-        await interaction.reply('✅ All invite statistics have been reset for this server.');
+        await interaction.editReply('✅ All invite statistics have been reset for this server.');
     },
 };

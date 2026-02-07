@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const inviteManager = require('../../inviteManager.js');
 
 module.exports = {
@@ -7,6 +7,7 @@ module.exports = {
         .setDescription('Displays detailed invite statistics for a user.')
         .addUserOption(option => option.setName('user').setDescription('The user to check invites for')),
     async execute(interaction) {
+        await interaction.deferReply();
         const targetUser = interaction.options.getUser('user') || interaction.user;
         const guildId = interaction.guild.id;
         
@@ -25,6 +26,6 @@ module.exports = {
             .setDescription(`${targetUser}\nYou currently have **${total}** invites. (**${regular}** regular, **${left}** left, **${fake}** fake, **${bonus}** bonus)`)
             .setTimestamp();
 
-        await interaction.reply({ embeds: [inviteEmbed] });
+        await interaction.editReply({ embeds: [inviteEmbed] });
     },
 };
