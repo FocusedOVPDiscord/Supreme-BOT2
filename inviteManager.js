@@ -1,4 +1,6 @@
 const { query } = require('./utils/db');
+const fs = require('fs');
+const { getPath } = require('./pathConfig');
 
 class InviteManager {
     constructor() {}
@@ -93,10 +95,48 @@ class InviteManager {
 
     async resetAll(guildId) {
         try {
-            // Delete all invite stats for the guild
+            // 1. Delete all invite stats for the guild from TiDB
             await query('DELETE FROM invites WHERE guild_id = ?', [guildId]);
-            // Delete all join history for the guild to ensure a fresh start
+            // 2. Delete all join history for the guild from TiDB
             await query('DELETE FROM join_history WHERE guild_id = ?', [guildId]);
+
+            // 3. IMPORTANT: Also clear the legacy JSON files if they exist
+            // This prevents the migration script from reloading old data on next restart
+            const invitesPath = getPath('invites.json');
+            if (fs.existsSync(invitesPath)) {
+                try {
+                    let invites = JSON.parse(fs.readFileSync(invitesPath, 'utf8'));
+                    if (invites[guildId]) {
+                        delete invites[guildId];
+                        fs.writeFileSync(invitesPath, JSON.stringify(invites, null, 2));
+                        console.log(`[RESET] Cleared legacy invites.json for guild ${guildId}`);
+                    }
+                } catch (e) {
+                    console.error('Error clearing invites.json:', e);
+                }
+            }
+
+            const joinHistoryPath = getPath('join-history.json');
+            if (fs.existsSync(joinHistoryPath)) {
+                try {
+                    let history = JSON.parse(fs.readFileSync(joinHistoryPath, 'utf8'));
+                    // join-history.json uses guildId_userId as keys
+                    let changed = false;
+                    for (const key in history) {
+                        if (key.startsWith(`${guildId}_`)) {
+                            delete history[key];
+                            changed = true;
+                        }
+                    }
+                    if (changed) {
+                        fs.writeFileSync(joinHistoryPath, JSON.stringify(history, null, 2));
+                        console.log(`[RESET] Cleared legacy join-history.json for guild ${guildId}`);
+                    }
+                } catch (e) {
+                    console.error('Error clearing join-history.json:', e);
+                }
+            }
+
             return true;
         } catch (error) {
             console.error('Error resetting guild data in TiDB:', error);
