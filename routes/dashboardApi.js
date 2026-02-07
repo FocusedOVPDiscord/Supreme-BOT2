@@ -425,7 +425,7 @@ router.post('/users/:id/moderate', requireAuth, async (req, res) => {
 
     switch (action) {
       case 'warn':
-        await member.send(`⚠️ You have been warned in **\${guild.name}**\n**Reason:** \${reason}`).catch(() => null);
+        await member.send(`⚠️ You have been warned in **${guild.name}**\n**Reason:** ${reason}`).catch(() => null);
         break;
       case 'mute':
         await member.timeout(24 * 60 * 60 * 1000, reason); // 24 hour timeout
@@ -506,7 +506,7 @@ router.get('/giveaways', requireAuth, async (req, res) => {
   try {
     const allGiveawayIds = storage.get(guild.id, 'all_giveaways') || [];
     const giveaways = allGiveawayIds.map(msgId => {
-      const participants = storage.get(guild.id, \`giveaway_\${msgId}\`) || [];
+      const participants = storage.get(guild.id, `giveaway_${msgId}`) || [];
       return {
         id: msgId,
         participants: participants.length,

@@ -22,7 +22,7 @@ module.exports = {
         const inviteEmbed = new EmbedBuilder()
             .setColor('#5865F2')
             .setAuthor({ name: targetUser.tag, iconURL: targetUser.displayAvatarURL() })
-            .setDescription(`${targetUser}\nYou currently have **\${total}** invites. (**\${regular}** regular, **\${left}** left, **\${fake}** fake, **\${bonus}** bonus)`)
+            .setDescription(`${targetUser}\nYou currently have **${total}** invites. (**${regular}** regular, **${left}** left, **${fake}** fake, **${bonus}** bonus)`)
             .setTimestamp();
 
         await interaction.reply({ embeds: [inviteEmbed] });
