@@ -66,7 +66,7 @@ class InviteManager {
     async recordJoin(guildId, userId, inviterId, isFake) {
         try {
             await query(
-                'INSERT INTO join_history (guild_id, user_id, inviter_id, is_fake, joined_at) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE inviter_id=?, is_fake=?, joined_at=?',
+                'INSERT INTO join_history (guild_id, user_id, inviter_id, is_fake, joined_at, has_left) VALUES (?, ?, ?, ?, ?, 0) ON DUPLICATE KEY UPDATE inviter_id=?, is_fake=?, joined_at=?, has_left=0',
                 [guildId, userId, inviterId, isFake ? 1 : 0, Date.now(), inviterId, isFake ? 1 : 0, Date.now()]
             );
         } catch (error) {
@@ -84,13 +84,25 @@ class InviteManager {
                 return {
                     inviterId: results[0].inviter_id,
                     isFake: results[0].is_fake === 1,
-                    joinedAt: results[0].joined_at
+                    joinedAt: results[0].joined_at,
+                    hasLeft: results[0].has_left === 1
                 };
             }
         } catch (error) {
             console.error('Error getting join data from TiDB:', error);
         }
         return null;
+    }
+
+    async recordLeave(guildId, userId) {
+        try {
+            await query(
+                'UPDATE join_history SET has_left = 1 WHERE guild_id = ? AND user_id = ?',
+                [guildId, userId]
+            );
+        } catch (error) {
+            console.error('Error recording leave in TiDB:', error);
+        }
     }
 
     async resetAll(guildId) {

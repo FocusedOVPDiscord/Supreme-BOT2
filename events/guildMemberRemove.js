@@ -18,10 +18,20 @@ module.exports = {
             }
 
             const inviterId = joinData.inviterId;
+
+            // PREVENT AUTOFARM: Only increment "Left" if they haven't been marked as left before
+            if (joinData.hasLeft) {
+                console.log(`[INVITES] Member ${member.user.tag} left again. Skipping "Left" increment to prevent autofarm.`);
+                return;
+            }
+
             const userData = await inviteManager.getUserData(guildId, inviterId);
             
             // Increase "left" count for non-fake members (Regular count remains unchanged)
             userData.left++;
+            
+            // Mark as left in history to prevent multiple increments
+            await inviteManager.recordLeave(guildId, member.id);
             
             // Update the inviter's stats
             await inviteManager.updateUser(guildId, inviterId, userData);
