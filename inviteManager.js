@@ -66,6 +66,7 @@ class InviteManager {
 
     async recordJoin(guildId, userId, inviterId, isFake) {
         try {
+            // We use 0 for false and 1 for true to be compatible with TiDB/MySQL BOOLEAN
             await query(
                 'INSERT INTO join_history (guild_id, user_id, inviter_id, is_fake, joined_at, has_left) VALUES (?, ?, ?, ?, ?, 0) ON DUPLICATE KEY UPDATE inviter_id=?, is_fake=?, joined_at=?, has_left=0',
                 [guildId, userId, inviterId, isFake ? 1 : 0, Date.now(), inviterId, isFake ? 1 : 0, Date.now()]
