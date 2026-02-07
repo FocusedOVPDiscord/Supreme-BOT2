@@ -81,11 +81,12 @@ class InviteManager {
                 [guildId, userId]
             );
             if (results.length > 0) {
+                const row = results[0];
                 return {
-                    inviterId: results[0].inviter_id,
-                    isFake: results[0].is_fake === 1,
-                    joinedAt: results[0].joined_at,
-                    hasLeft: results[0].has_left === 1
+                    inviterId: row.inviter_id,
+                    isFake: row.is_fake === 1,
+                    joinedAt: row.joined_at,
+                    hasLeft: row.has_left === 1 || row.has_left === true
                 };
             }
         } catch (error) {

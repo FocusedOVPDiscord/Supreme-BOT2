@@ -71,6 +71,7 @@ try {
                     inviter_id VARCHAR(255),
                     is_fake BOOLEAN,
                     joined_at BIGINT,
+                    has_left BOOLEAN DEFAULT 0,
                     PRIMARY KEY (guild_id, user_id)
                 )
             `);
