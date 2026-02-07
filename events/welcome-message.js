@@ -37,17 +37,17 @@ module.exports = {
                 inviterMention = `<@${inviterId}>`;
 
                 const isFake = inviteManager.isFakeMember(member);
-                const userData = inviteManager.getUserData(guildId, inviterId);
+                const userData = await inviteManager.getUserData(guildId, inviterId);
 
-                if (!inviteManager.hasJoinedBefore(guildId, member.id)) {
+                if (!(await inviteManager.hasJoinedBefore(guildId, member.id))) {
                     if (isFake) {
                         userData.fake++;
                     } else {
                         userData.regular++;
                     }
-                    inviteManager.recordJoin(guildId, member.id, inviterId, isFake);
+                    await inviteManager.recordJoin(guildId, member.id, inviterId, isFake);
                 }
-                inviteManager.updateUser(guildId, inviterId, userData);
+                await inviteManager.updateUser(guildId, inviterId, userData);
             }
         } catch (e) { 
             console.error('[INVITES] Error:', e); 

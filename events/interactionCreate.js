@@ -112,10 +112,11 @@ module.exports = {
                     fs.writeFileSync(counterPath, JSON.stringify(counterData, null, 2));
                     
                     const ticketNumber = counterData.ticketCount.toString().padStart(4, '0');
+                    const ticketCategoryId = storage.get(guild.id, 'ticketCategory') || CONFIG.TICKET_CATEGORY_ID;
                     const ticketChannel = await guild.channels.create({
                         name: `ticket-${ticketNumber}`,
                         type: ChannelType.GuildText,
-                        parent: CONFIG.TICKET_CATEGORY_ID,
+                        parent: ticketCategoryId,
                         permissionOverwrites: [
                             { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
                             { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },

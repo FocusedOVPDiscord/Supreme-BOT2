@@ -322,9 +322,11 @@ router.get('/settings', requireAuth, async (req, res) => {
   const guild = getSelectedGuild(req);
   if (!guild) return res.status(404).json({ error: 'No server selected' });
 
+  const welcomeConfig = storage.get(guild.id, 'welcome_config') || {};
+
   res.json({
-    autoRole: storage.get(guild.id, 'autoRole') || '',
-    welcomeChannel: storage.get(guild.id, 'welcomeChannel') || '',
+    autoRole: storage.get(guild.id, 'autoRoleId') || '',
+    welcomeChannel: welcomeConfig.channelId || '',
     ticketCategory: storage.get(guild.id, 'ticketCategory') || ''
   });
 });
@@ -338,8 +340,14 @@ router.post('/settings', requireAuth, async (req, res) => {
 
   const { autoRole, welcomeChannel, ticketCategory } = req.body;
   
-  if (autoRole !== undefined) await storage.set(guild.id, 'autoRole', autoRole);
-  if (welcomeChannel !== undefined) await storage.set(guild.id, 'welcomeChannel', welcomeChannel);
+  if (autoRole !== undefined) await storage.set(guild.id, 'autoRoleId', autoRole);
+  
+  if (welcomeChannel !== undefined) {
+    const welcomeConfig = storage.get(guild.id, 'welcome_config') || {};
+    welcomeConfig.channelId = welcomeChannel;
+    await storage.set(guild.id, 'welcome_config', welcomeConfig);
+  }
+  
   if (ticketCategory !== undefined) await storage.set(guild.id, 'ticketCategory', ticketCategory);
 
   res.json({ success: true });
@@ -385,7 +393,54 @@ router.get('/users', requireAuth, async (req, res) => {
       };
     }));
 
-    res.json({ users, pagination: { page, total, totalPages: Math.ceil(total / limit) } });
+    const totalPages = Math.ceil(total / limit);
+    res.json({ 
+      users, 
+      pagination: { 
+        page, 
+        total, 
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      } 
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/dashboard/users/:id/moderate
+ */
+router.post('/users/:id/moderate', requireAuth, async (req, res) => {
+  const guild = getSelectedGuild(req);
+  if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+  const { action, reason } = req.body;
+  const targetId = req.params.id;
+
+  try {
+    const member = await guild.members.fetch(targetId).catch(() => null);
+    if (!member && action !== 'ban') return res.status(404).json({ error: 'Member not found' });
+
+    switch (action) {
+      case 'warn':
+        await member.send(`⚠️ You have been warned in **\${guild.name}**\n**Reason:** \${reason}`).catch(() => null);
+        break;
+      case 'mute':
+        await member.timeout(24 * 60 * 60 * 1000, reason); // 24 hour timeout
+        break;
+      case 'kick':
+        await member.kick(reason);
+        break;
+      case 'ban':
+        await guild.members.ban(targetId, { reason });
+        break;
+      default:
+        return res.status(400).json({ error: 'Invalid action' });
+    }
+
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -414,6 +469,51 @@ router.get('/transcripts/:id', requireAuth, async (req, res) => {
     const results = await query('SELECT * FROM transcripts WHERE id = ?', [req.params.id]);
     if (results.length === 0) return res.status(404).json({ error: 'Transcript not found' });
     res.json(results[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/dashboard/audit-logs
+ */
+router.get('/audit-logs', requireAuth, async (req, res) => {
+  const guild = getSelectedGuild(req);
+  if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+  try {
+    const auditLogs = await guild.fetchAuditLogs({ limit: 50 });
+    const formatted = auditLogs.entries.map(entry => ({
+      id: entry.id,
+      executor: entry.executor ? entry.executor.username : 'Unknown',
+      action: entry.action,
+      target: entry.target ? (entry.target.username || entry.target.name || entry.targetId) : 'N/A',
+      timestamp: entry.createdAt.toLocaleString()
+    }));
+    res.json(formatted);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/dashboard/giveaways
+ */
+router.get('/giveaways', requireAuth, async (req, res) => {
+  const guild = getSelectedGuild(req);
+  if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+  try {
+    const allGiveawayIds = storage.get(guild.id, 'all_giveaways') || [];
+    const giveaways = allGiveawayIds.map(msgId => {
+      const participants = storage.get(guild.id, \`giveaway_\${msgId}\`) || [];
+      return {
+        id: msgId,
+        participants: participants.length,
+        status: 'Active'
+      };
+    });
+    res.json(giveaways);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

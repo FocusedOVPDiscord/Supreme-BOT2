@@ -11,6 +11,7 @@ const path = require('node:path');
 const express = require('express');
 const axios = require('axios');
 const { initializeDataDirectory } = require('./dataInit');
+const { query } = require('./utils/db');
 require('dotenv').config();
 
 // --- CRASH RECOVERY ---
@@ -39,6 +40,63 @@ if (!TOKEN) {
 console.log('[STARTUP] Initializing data directory...');
 try {
     initializeDataDirectory();
+    
+    // Initialize TiDB Schema
+    (async () => {
+        try {
+            console.log('🚀 [STARTUP] Initializing TiDB Schema...');
+            await query(`
+                CREATE TABLE IF NOT EXISTS settings (
+                    guild_id VARCHAR(255),
+                    setting_key VARCHAR(255),
+                    setting_value TEXT,
+                    PRIMARY KEY (guild_id, setting_key)
+                )
+            `);
+            await query(`
+                CREATE TABLE IF NOT EXISTS invites (
+                    guild_id VARCHAR(255),
+                    user_id VARCHAR(255),
+                    regular INT DEFAULT 0,
+                    fake INT DEFAULT 0,
+                    bonus INT DEFAULT 0,
+                    left_count INT DEFAULT 0,
+                    PRIMARY KEY (guild_id, user_id)
+                )
+            `);
+            await query(`
+                CREATE TABLE IF NOT EXISTS join_history (
+                    guild_id VARCHAR(255),
+                    user_id VARCHAR(255),
+                    inviter_id VARCHAR(255),
+                    is_fake BOOLEAN,
+                    joined_at BIGINT,
+                    PRIMARY KEY (guild_id, user_id)
+                )
+            `);
+            await query(`
+                CREATE TABLE IF NOT EXISTS transcripts (
+                    id VARCHAR(255) PRIMARY KEY,
+                    guild_id VARCHAR(255),
+                    user VARCHAR(255),
+                    closed_at BIGINT,
+                    messages JSON
+                )
+            `);
+            await query(`
+                CREATE TABLE IF NOT EXISTS trusted_ips (
+                    ip VARCHAR(255) PRIMARY KEY,
+                    user_id VARCHAR(255),
+                    username VARCHAR(255),
+                    avatar VARCHAR(255),
+                    last_login DATETIME
+                )
+            `);
+            console.log('✅ [STARTUP] TiDB Schema ready.');
+        } catch (dbErr) {
+            console.error('❌ [STARTUP] TiDB Schema initialization failed:', dbErr);
+        }
+    })();
 } catch (err) {
     console.error('❌ [ERROR] Data initialization failed:', err);
 }

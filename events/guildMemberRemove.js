@@ -7,7 +7,7 @@ module.exports = {
         const guildId = member.guild.id;
         
         // Find who invited this person
-        const joinData = inviteManager.getJoinData(guildId, member.id);
+        const joinData = await inviteManager.getJoinData(guildId, member.id);
         
         if (joinData && joinData.inviterId) {
             // NEW LOGIC: If the member was marked as FAKE when they joined, 
@@ -18,13 +18,13 @@ module.exports = {
             }
 
             const inviterId = joinData.inviterId;
-            const userData = inviteManager.getUserData(guildId, inviterId);
+            const userData = await inviteManager.getUserData(guildId, inviterId);
             
             // Increment "Left" count only for non-fake members
             userData.left++;
             
             // Update the inviter's stats
-            inviteManager.updateUser(guildId, inviterId, userData);
+            await inviteManager.updateUser(guildId, inviterId, userData);
             
             console.log(`[INVITES] Real member ${member.user.tag} left. Inviter ${inviterId} now has ${userData.left} left.`);
         }
