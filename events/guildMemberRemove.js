@@ -8,45 +8,38 @@ module.exports = {
             const guildId = member.guild.id;
             const userId = member.id;
             
-            // 1. Fetch join data for this specific join session
+            // 1. Fetch join data to identify the inviter and current status
             const joinData = await inviteManager.getJoinData(guildId, userId);
             
             if (!joinData || !joinData.inviterId) {
-                console.log(`[INVITES] No join data for ${member.user.tag} (${userId}). Skipping "Left" logic.`);
+                console.log(`[INVITES] No inviter found for ${member.user.tag}. Skipping "Left" logic.`);
                 return;
             }
 
-            // 2. ULTIMATE AUTOFARM PROTECTION:
-            // Check if this specific user has ALREADY been counted as "Left" in the past.
-            // If they have, we do NOT increment the left count again.
-            if (joinData.hasLeft) {
-                console.log(`[INVITES] ${member.user.tag} already has a "Left" record. Skipping increment.`);
-                return;
-            }
-
-            // 3. FAKE PROTECTION:
-            // Don't count departures for fake accounts.
             if (joinData.isFake) {
                 console.log(`[INVITES] Fake member ${member.user.tag} left. Ignoring.`);
                 return;
             }
 
+            // 2. ATOMIC LOCK: Attempt to mark the user as 'left' in the database.
+            // This operation is ATOMIC. If recordLeave returns true, it means they 
+            // were NOT already marked as left, and we have successfully "claimed" 
+            // the right to increment the left count exactly once.
+            const wasSuccessfullyMarkedAsLeft = await inviteManager.recordLeave(guildId, userId);
+            
+            if (!wasSuccessfullyMarkedAsLeft) {
+                console.log(`[INVITES] ${member.user.tag} already counted as Left (Database Lock). Skipping increment.`);
+                return;
+            }
+
+            // 3. INCREMENT LEFT:
+            // Since we successfully claimed the lock, we now increment the inviter's count.
             const inviterId = joinData.inviterId;
-            const userData = await inviteManager.getUserData(guildId, inviterId);
+            await inviteManager.updateUser(guildId, inviterId, { left: 1, left_increment: true });
             
-            // 4. INCREMENT LEFT:
-            // We increase the counter and IMMEDIATELY mark them as left in the DB.
-            userData.left++;
-            
-            // Update the user's invite stats
-            await inviteManager.updateUser(guildId, inviterId, userData);
-            
-            // Mark this user as having left in their join history
-            await inviteManager.recordLeave(guildId, userId);
-            
-            console.log(`[INVITES] Real member ${member.user.tag} left. Inviter ${inviterId} now has ${userData.left} left.`);
+            console.log(`[INVITES] SUCCESS: ${member.user.tag} left. Inviter ${inviterId} left count incremented (Atomic Lock applied).`);
         } catch (error) {
-            console.error('[INVITES ERROR] Error in guildMemberRemove:', error);
+            console.error('[INVITES ERROR] Fatal error in guildMemberRemove:', error);
         }
     },
 };

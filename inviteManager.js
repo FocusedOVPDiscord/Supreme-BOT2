@@ -28,6 +28,16 @@ class InviteManager {
 
     async updateUser(guildId, userId, updates) {
         try {
+            // If we are specifically updating the 'left' count, we use a relative increment
+            // to avoid race conditions from overwriting data with old cached values.
+            if (updates.left !== undefined && updates.left_increment === true) {
+                await query(
+                    'INSERT INTO invites (guild_id, user_id, regular, fake, bonus, left_count) VALUES (?, ?, 0, 0, 0, 1) ON DUPLICATE KEY UPDATE left_count = left_count + 1',
+                    [guildId, userId]
+                );
+                return await this.getUserData(guildId, userId);
+            }
+
             const current = await this.getUserData(guildId, userId);
             const newData = { ...current, ...updates };
             
@@ -99,12 +109,18 @@ class InviteManager {
 
     async recordLeave(guildId, userId) {
         try {
-            await query(
-                'UPDATE join_history SET has_left = 1 WHERE guild_id = ? AND user_id = ?',
+            // We use a strict check: only update if has_left is currently 0.
+            // This returns the number of affected rows.
+            const result = await query(
+                'UPDATE join_history SET has_left = 1 WHERE guild_id = ? AND user_id = ? AND has_left = 0',
                 [guildId, userId]
             );
+            // If affectedRows is 1, it means this was the FIRST time they left.
+            // If affectedRows is 0, they already left before.
+            return result.affectedRows > 0;
         } catch (error) {
             console.error('Error recording leave in TiDB:', error);
+            return false;
         }
     }
 
