@@ -126,6 +126,21 @@ module.exports = {
                     const ticketData = { creator: user.id, createdAt: new Date().toISOString(), partner, type, details, number: ticketNumber };
                     await ticketChannel.setTopic(JSON.stringify(ticketData));
 
+                    // Store ticket metadata in persistent storage for dashboard
+                    const activeTickets = storage.get(guild.id, 'active_tickets') || {};
+                    activeTickets[ticketChannel.id] = {
+                        id: ticketChannel.id,
+                        user: user.username,
+                        userId: user.id,
+                        created: new Date().toISOString(),
+                        status: 'Active',
+                        ticketNumber: ticketNumber,
+                        partner,
+                        type,
+                        details
+                    };
+                    await storage.set(guild.id, 'active_tickets', activeTickets);
+
                     const policyEmbed = new EmbedBuilder()
                         .setAuthor({ name: 'Supreme | MM', iconURL: CONFIG.SUPREME_LOGO })
                         .setTitle('Middleman Ticket Policy')
@@ -154,14 +169,69 @@ module.exports = {
                 const tempData = storage.get(guild.id, tempKey);
                 if (!tempData) return interaction.reply({ content: '❌ Error: Setup data lost.', flags: [MessageFlags.Ephemeral] });
                 const welcomeConfig = { channelId: tempData.channelId, bannerUrl: tempData.bannerUrl, description: description };
-                storage.set(guild.id, 'welcome_config', welcomeConfig);
-                storage.delete(guild.id, tempKey);
+                await storage.set(guild.id, 'welcome_config', welcomeConfig);
+                await storage.delete(guild.id, tempKey);
                 return interaction.reply({ content: '✅ Welcome message configured!', flags: [MessageFlags.Ephemeral] });
             }
         }
 
         if (interaction.isButton()) {
             const { customId } = interaction;
+
+            // Giveaway Buttons
+            if (customId.startsWith('giveaway_entry_')) {
+                const parts = customId.split('_');
+                const endTime = parseInt(parts[2]);
+                const winnersCount = parseInt(parts[3]);
+                
+                if (Date.now() > endTime * 1000) {
+                    return interaction.reply({ content: '❌ This giveaway has already ended!', flags: [MessageFlags.Ephemeral] });
+                }
+
+                const giveawayId = `giveaway_${interaction.message.id}`;
+                const participants = storage.get(guild.id, giveawayId) || [];
+
+                if (participants.includes(user.id)) {
+                    // Remove entry
+                    const index = participants.indexOf(user.id);
+                    participants.splice(index, 1);
+                    await storage.set(guild.id, giveawayId, participants);
+                    
+                    await interaction.reply({ content: '✅ Your entry has been removed.', flags: [MessageFlags.Ephemeral] });
+                } else {
+                    // Add entry
+                    participants.push(user.id);
+                    await storage.set(guild.id, giveawayId, participants);
+                    
+                    await interaction.reply({ content: '✅ You have entered the giveaway!', flags: [MessageFlags.Ephemeral] });
+                }
+
+                // Update the giveaway message embed
+                const embed = EmbedBuilder.from(interaction.message.embeds[0]);
+                const description = embed.data.description;
+                const newDescription = description.replace(/Participants: \*\*\d+\*\*/, `Participants: **${participants.length}**`);
+                embed.setDescription(newDescription);
+                
+                await interaction.message.edit({ embeds: [embed] });
+                return;
+            }
+
+            if (customId.startsWith('giveaway_participants_')) {
+                const giveawayId = `giveaway_${interaction.message.id}`;
+                const participants = storage.get(guild.id, giveawayId) || [];
+                
+                if (participants.length === 0) {
+                    return interaction.reply({ content: 'There are currently no participants in this giveaway.', flags: [MessageFlags.Ephemeral] });
+                }
+
+                const participantList = participants.map(id => `<@${id}>`).join(', ');
+                const listEmbed = new EmbedBuilder()
+                    .setTitle('Giveaway Participants')
+                    .setDescription(participantList.length > 2000 ? participantList.substring(0, 1997) + '...' : participantList)
+                    .setColor('#5865F2');
+
+                return interaction.reply({ embeds: [listEmbed], flags: [MessageFlags.Ephemeral] });
+            }
 
             if (customId.startsWith('mm_app_accept_')) {
                 const applicantId = customId.replace('mm_app_accept_', '');
@@ -204,8 +274,8 @@ module.exports = {
             if (customId === 'create_middleman_ticket') {
                 const modal = new ModalBuilder().setCustomId('middleman_ticket_modal').setTitle('Create Middleman Ticket');
                 modal.addComponents(
-                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('trading_partner').setLabel('Who are you trading with?').setStyle(TextInputStyle.Short).setRequired(true)),
-                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('trade_type').setLabel('Trade Type?').setStyle(TextInputStyle.Short).setRequired(true)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('trading_partner').setLabel('Who are you trading with? (Name/ID)').setStyle(TextInputStyle.Short).setRequired(true)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('trade_type').setLabel('Trade Type? (Item/Item), (Item/Money)').setStyle(TextInputStyle.Short).setRequired(true)),
                     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('trade_details').setLabel('Enter The Trade Below').setStyle(TextInputStyle.Paragraph).setRequired(true))
                 );
                 try {
@@ -244,6 +314,13 @@ module.exports = {
                 let ticketData = {};
                 try { if (channel.topic) ticketData = JSON.parse(channel.topic); } catch (e) {}
                 try { await generateAndSendTranscript(channel, user, ticketData); } catch (error) {}
+
+                // Remove from active tickets storage
+                const activeTickets = storage.get(guild.id, 'active_tickets') || {};
+                if (activeTickets[channel.id]) {
+                    delete activeTickets[channel.id];
+                    await storage.set(guild.id, 'active_tickets', activeTickets);
+                }
                 
                 setTimeout(async () => { 
                     try { 

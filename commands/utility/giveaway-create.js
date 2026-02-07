@@ -37,7 +37,7 @@ module.exports = {
 
         const durationMs = parseDuration(durationStr);
         if (durationMs <= 0) {
-            return interaction.reply({ content: '? Invalid duration format! Use something like `1h`, `30m`, or `1d`.', ephemeral: true });
+            return interaction.reply({ content: '❌ Invalid duration format! Use something like `1h`, `30m`, or `1d`.', ephemeral: true });
         }
 
         const endTime = Math.floor((Date.now() + durationMs) / 1000);
@@ -57,12 +57,12 @@ module.exports = {
             new ButtonBuilder()
                 .setCustomId(`giveaway_entry_${endTime}_${winnersCount}`)
                 .setLabel('Entry')
-                .setEmoji('\u{1F389}')
+                .setEmoji('🎉')
                 .setStyle(ButtonStyle.Primary),
             new ButtonBuilder()
                 .setCustomId(`giveaway_participants_${endTime}`)
                 .setLabel('Participants')
-                .setEmoji('\u{1F465}')
+                .setEmoji('👥')
                 .setStyle(ButtonStyle.Secondary)
         );
 
@@ -71,16 +71,16 @@ module.exports = {
             
             // IMPORTANT: Initialize storage immediately so management commands can find it
             const giveawayId = `giveaway_${giveawayMsg.id}`;
-            storage.set(interaction.guild.id, giveawayId, []);
+            await storage.set(interaction.guild.id, giveawayId, []);
 
             // Track active giveaways for /giveaway-list
             const allGiveaways = storage.get(interaction.guild.id, 'all_giveaways') || [];
             if (!allGiveaways.includes(giveawayMsg.id)) {
                 allGiveaways.push(giveawayMsg.id);
-                storage.set(interaction.guild.id, 'all_giveaways', allGiveaways);
+                await storage.set(interaction.guild.id, 'all_giveaways', allGiveaways);
             }
 
-            await interaction.reply({ content: `\u2705 Giveaway started in ${channel}!`, ephemeral: true });
+            await interaction.reply({ content: `✅ Giveaway started in ${channel}!`, ephemeral: true });
 
             // Schedule the giveaway end
             setTimeout(async () => {
@@ -90,7 +90,7 @@ module.exports = {
                     
                     let winners = [];
                     if (participants.length > 0) {
-                        const shuffled = participants.sort(() => 0.5 - Math.random());
+                        const shuffled = [...participants].sort(() => 0.5 - Math.random());
                         winners = shuffled.slice(0, winnersCount);
                     }
 
@@ -122,7 +122,7 @@ module.exports = {
 
         } catch (error) {
             console.error('Giveaway Send Error:', error);
-            await interaction.reply({ content: '? Failed to send giveaway message.', ephemeral: true });
+            await interaction.reply({ content: '❌ Failed to send giveaway message.', ephemeral: true });
         }
     }
 };

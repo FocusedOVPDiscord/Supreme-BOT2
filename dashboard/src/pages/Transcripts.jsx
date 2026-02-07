@@ -15,6 +15,15 @@ export default function Transcripts() {
       .catch(() => setLoading(false));
   }, []);
 
+  const parseMessages = (messagesJson) => {
+    try {
+      return typeof messagesJson === 'string' ? JSON.parse(messagesJson) : messagesJson;
+    } catch (e) {
+      console.error('Failed to parse messages:', e);
+      return [];
+    }
+  };
+
   if (loading) return <div className="p-8 text-white">Loading transcripts...</div>;
 
   return (
@@ -35,10 +44,13 @@ export default function Transcripts() {
                 Closed
               </span>
             </div>
-            <h3 className="text-xl font-bold text-white mb-1 group-hover:text-indigo-400 transition-colors">{transcript.user}</h3>
-            <p className="text-slate-500 text-sm mb-4">Closed on {new Date(transcript.closedAt).toLocaleDateString()}</p>
+            <h3 className="text-xl font-bold text-white mb-1 group-hover:text-indigo-400 transition-colors">Ticket #{transcript.user}</h3>
+            <p className="text-slate-500 text-sm mb-4">Closed on {new Date(transcript.closed_at).toLocaleDateString()}</p>
             <button 
-              onClick={() => setSelectedTranscript(transcript)}
+              onClick={() => {
+                const t = { ...transcript, messages: parseMessages(transcript.messages) };
+                setSelectedTranscript(t);
+              }}
               className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-sm font-bold transition-all"
             >
               View Transcript
@@ -58,8 +70,8 @@ export default function Transcripts() {
           <div className="bg-slate-900 border border-white/10 rounded-3xl w-full max-w-3xl max-h-[80vh] flex flex-col shadow-2xl overflow-hidden">
             <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/5">
               <div>
-                <h2 className="text-xl font-bold text-white">Transcript: {selectedTranscript.user}</h2>
-                <p className="text-xs text-slate-400">Closed on {new Date(selectedTranscript.closedAt).toLocaleString()}</p>
+                <h2 className="text-xl font-bold text-white">Transcript: Ticket #{selectedTranscript.user}</h2>
+                <p className="text-xs text-slate-400">Closed on {new Date(selectedTranscript.closed_at).toLocaleString()}</p>
               </div>
               <button 
                 onClick={() => setSelectedTranscript(null)}
@@ -70,17 +82,21 @@ export default function Transcripts() {
             </div>
             
             <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-900/50">
-              {selectedTranscript.messages.map((msg, i) => (
-                <div key={i} className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-indigo-400">{msg.author}</span>
-                    <span className="text-[10px] text-slate-500">{new Date(msg.timestamp).toLocaleString()}</span>
+              {selectedTranscript.messages && selectedTranscript.messages.length > 0 ? (
+                selectedTranscript.messages.map((msg, i) => (
+                  <div key={i} className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-indigo-400">{msg.author}</span>
+                      <span className="text-[10px] text-slate-500">{new Date(msg.timestamp).toLocaleString()}</span>
+                    </div>
+                    <div className="text-slate-300 text-sm leading-relaxed break-words whitespace-pre-wrap bg-white/5 p-3 rounded-xl border border-white/5">
+                      {msg.content}
+                    </div>
                   </div>
-                  <div className="text-slate-300 text-sm leading-relaxed break-words whitespace-pre-wrap bg-white/5 p-3 rounded-xl border border-white/5">
-                    {msg.content}
-                  </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <div className="text-center py-20 text-slate-500">No messages found in this transcript.</div>
+              )}
             </div>
             
             <div className="p-6 border-t border-white/5 bg-white/5">

@@ -83,8 +83,8 @@ export default function Tickets() {
                 {ticket.status}
               </span>
             </div>
-            <h3 className="text-xl font-bold text-white mb-1 group-hover:text-indigo-400 transition-colors">{ticket.user}</h3>
-            <p className="text-slate-500 text-sm mb-4">Created on {ticket.created}</p>
+            <h3 className="text-xl font-bold text-white mb-1 group-hover:text-indigo-400 transition-colors">Ticket #{ticket.ticketNumber || ticket.user}</h3>
+            <p className="text-slate-500 text-sm mb-4">Created by {ticket.user} on {new Date(ticket.created).toLocaleDateString()}</p>
             <div className="flex gap-3">
               <button 
                 onClick={() => viewChat(ticket)}
@@ -119,8 +119,8 @@ export default function Tickets() {
           <div className="bg-slate-900 border border-white/10 rounded-3xl w-full max-w-3xl max-h-[80vh] flex flex-col shadow-2xl overflow-hidden">
             <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/5">
               <div>
-                <h2 className="text-xl font-bold text-white">Ticket: {selectedTicket.user}</h2>
-                <p className="text-xs text-slate-400 font-mono">{selectedTicket.id}</p>
+                <h2 className="text-xl font-bold text-white">Ticket #{selectedTicket.ticketNumber || selectedTicket.user}</h2>
+                <p className="text-xs text-slate-400 font-mono">Channel ID: {selectedTicket.id}</p>
               </div>
               <button 
                 onClick={() => setSelectedTicket(null)}
@@ -155,7 +155,7 @@ export default function Tickets() {
                       <div className="text-slate-300 text-sm leading-relaxed break-words whitespace-pre-wrap">
                         {msg.content}
                       </div>
-                      {msg.attachments.length > 0 && (
+                      {msg.attachments && msg.attachments.length > 0 && (
                         <div className="pt-2 flex flex-wrap gap-2">
                           {msg.attachments.map((url, i) => (
                             <a key={i} href={url} target="_blank" rel="noreferrer" className="block rounded-lg overflow-hidden border border-white/10 hover:border-indigo-500/50 transition-all">

@@ -8,7 +8,7 @@ module.exports = {
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
     async execute(interaction) {
         const guildId = interaction.guild.id;
-        inviteManager.resetAll(guildId);
+        await inviteManager.resetAll(guildId);
         await interaction.reply('✅ All invite statistics have been reset for this server.');
     },
 };

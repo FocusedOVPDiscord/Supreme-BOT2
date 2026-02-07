@@ -21,12 +21,12 @@ module.exports = {
 
             // Get current user data
             const guildId = interaction.guild.id;
-            const userData = inviteManager.getUserData(guildId, targetUser.id);
+            const userData = await inviteManager.getUserData(guildId, targetUser.id);
             const oldBonus = userData.bonus;
             const newBonus = oldBonus + amount;
 
             // Update bonus invites
-            inviteManager.updateUser(guildId, targetUser.id, { bonus: newBonus });
+            await inviteManager.updateUser(guildId, targetUser.id, { bonus: newBonus });
 
             // Calculate total invites
             const total = userData.regular + newBonus - userData.left;

@@ -11,7 +11,7 @@ const { saveTranscriptToDashboard, formatMessagesForDashboard } = require('../ut
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '1459183931005075701';
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '2HFpZf8paKaxZnSfuhbAFr4nx8hn-ymg';
 const REDIRECT_URI = process.env.REDIRECT_URI || 'https://breakable-tiger-supremebot1-d8a3b39c.koyeb.app/dashboard/login';
-const STAFF_ROLE_IDS = ['982731220913913856', '958703198447755294', '1410661468688482314'];
+const STAFF_ROLE_IDS = ['982731220913913856', '958703198447755294', '1410661468688482314', '1457664338163667072', '1354402446994309123'];
 
 // Get client IP address
 function getClientIP(req) {
@@ -207,20 +207,12 @@ router.get('/stats', requireAuth, async (req, res) => {
   const guild = getSelectedGuild(req);
   if (!guild) return res.status(404).json({ error: 'No server selected' });
 
-  // Count active tickets by looking for channels in the ticket category
-  const ticketCategory = storage.get(guild.id, 'ticketCategory');
-  let activeTickets = 0;
-  let recentTickets = [];
-
-  if (ticketCategory) {
-    const channels = guild.channels.cache.filter(c => c.parentId === ticketCategory && c.type === ChannelType.GuildText);
-    activeTickets = channels.size;
-    recentTickets = Array.from(channels.values()).slice(0, 5).map(c => ({
-      id: c.id,
-      title: c.name,
-      status: 'Active'
-    }));
-  }
+  const activeTicketsData = storage.get(guild.id, 'active_tickets') || {};
+  const activeTicketsCount = Object.keys(activeTicketsData).length;
+  
+  let recentTickets = Object.values(activeTicketsData)
+    .sort((a, b) => new Date(b.created) - new Date(a.created))
+    .slice(0, 5);
 
   res.json({
     serverName: guild.name,
@@ -231,10 +223,76 @@ router.get('/stats', requireAuth, async (req, res) => {
     roles: guild.roles.cache.size,
     uptime: process.uptime(),
     botStatus: 'Online',
-    activeTickets: activeTickets,
+    activeTickets: activeTicketsCount,
     closedTickets: 0, // Placeholder
     recentTickets: recentTickets
   });
+});
+
+/**
+ * GET /api/dashboard/tickets
+ */
+router.get('/tickets', requireAuth, async (req, res) => {
+  const guild = getSelectedGuild(req);
+  if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+  const activeTickets = storage.get(guild.id, 'active_tickets') || {};
+  res.json(Object.values(activeTickets));
+});
+
+/**
+ * GET /api/dashboard/tickets/:id/messages
+ */
+router.get('/tickets/:id/messages', requireAuth, async (req, res) => {
+  const guild = getSelectedGuild(req);
+  if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+  try {
+    const channel = await guild.channels.fetch(req.params.id).catch(() => null);
+    if (!channel) return res.status(404).json({ error: 'Ticket channel not found' });
+
+    const messages = await channel.messages.fetch({ limit: 100 });
+    const formatted = messages.map(m => ({
+      id: m.id,
+      author: {
+        username: m.author.username,
+        avatar: m.author.displayAvatarURL(),
+        bot: m.author.bot
+      },
+      content: m.content,
+      timestamp: m.createdTimestamp,
+      attachments: m.attachments.map(a => a.url)
+    }));
+
+    res.json(formatted.reverse());
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/dashboard/tickets/:id
+ */
+router.delete('/tickets/:id', requireAuth, async (req, res) => {
+  const guild = getSelectedGuild(req);
+  if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+  try {
+    const channel = await guild.channels.fetch(req.params.id).catch(() => null);
+    if (channel) {
+      await channel.delete();
+    }
+    
+    const activeTickets = storage.get(guild.id, 'active_tickets') || {};
+    if (activeTickets[req.params.id]) {
+      delete activeTickets[req.params.id];
+      await storage.set(guild.id, 'active_tickets', activeTickets);
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 /**

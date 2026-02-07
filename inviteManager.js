@@ -12,10 +12,10 @@ class InviteManager {
             if (results.length > 0) {
                 const row = results[0];
                 return {
-                    regular: row.regular,
-                    fake: row.fake,
-                    bonus: row.bonus,
-                    left: row.left_count
+                    regular: row.regular || 0,
+                    fake: row.fake || 0,
+                    bonus: row.bonus || 0,
+                    left: row.left_count || 0
                 };
             }
         } catch (error) {
@@ -41,7 +41,6 @@ class InviteManager {
     }
 
     isFakeMember(member) {
-        // This remains logic-based, but config should be fetched from storage (which uses TiDB)
         const accountAge = Date.now() - member.user.createdTimestamp;
         const threshold = 168 * 60 * 60 * 1000; // Default 168h
         if (accountAge < threshold) return true;
