@@ -37,17 +37,26 @@ module.exports = {
                 inviterMention = `<@${inviterId}>`;
 
                 const isFake = inviteManager.isFakeMember(member);
-                const userData = await inviteManager.getUserData(guildId, inviterId);
-
-                if (!(await inviteManager.hasJoinedBefore(guildId, member.id))) {
+                
+                // GLOBAL ANTIFARM: Check if this user has EVER joined this guild before
+                const joinedBefore = await inviteManager.hasJoinedBefore(guildId, member.id);
+                
+                if (!joinedBefore) {
+                    // Only increment stats for the FIRST time they join
+                    const userData = await inviteManager.getUserData(guildId, inviterId);
                     if (isFake) {
                         userData.fake++;
                     } else {
                         userData.regular++;
                     }
                     await inviteManager.recordJoin(guildId, member.id, inviterId, isFake);
+                    await inviteManager.updateUser(guildId, inviterId, userData);
+                    console.log(`[INVITES] New member ${member.user.tag} joined. Credited to ${inviterId}.`);
+                } else {
+                    // They have joined before, update their record but don't give new invite credit
+                    await inviteManager.recordJoin(guildId, member.id, inviterId, isFake);
+                    console.log(`[INVITES] Returning member ${member.user.tag} joined. No new invite credit given (Antifarm).`);
                 }
-                await inviteManager.updateUser(guildId, inviterId, userData);
             }
         } catch (e) { 
             console.error('[INVITES] Error:', e); 

@@ -28,10 +28,13 @@ module.exports = {
                 return;
             }
 
-            const userData = await inviteManager.getUserData(guildId, inviterId);
-            console.log(`[DEBUG-REMOVE] Current inviter stats: ${JSON.stringify(userData)}`);
+            // IMPORTANT: Only increment "Left" if this specific inviter was actually credited for the join.
+            // If they joined via this inviter but were a "Returning member", no stats should change.
+            // However, based on your request, we want to track the departure if it was a valid "Regular" invite.
             
-            // Increase "left" count for non-fake members (Regular count remains unchanged)
+            const userData = await inviteManager.getUserData(guildId, inviterId);
+            
+            // Increase "left" count
             userData.left++;
             
             // Mark as left in history to prevent multiple increments

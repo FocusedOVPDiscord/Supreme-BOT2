@@ -56,6 +56,7 @@ class InviteManager {
                 'SELECT 1 FROM join_history WHERE guild_id = ? AND user_id = ?',
                 [guildId, userId]
             );
+            // Returns true if the user exists in join_history for THIS guild
             return results.length > 0;
         } catch (error) {
             console.error('Error checking join history in TiDB:', error);
