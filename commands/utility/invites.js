@@ -9,7 +9,9 @@ module.exports = {
     async execute(interaction) {
         const targetUser = interaction.options.getUser('user') || interaction.user;
         const guildId = interaction.guild.id;
-        const stats = inviteManager.getUserData(guildId, targetUser.id);
+        
+        // Ensure we await the database call
+        const stats = await inviteManager.getUserData(guildId, targetUser.id);
         
         const regular = parseInt(stats.regular) || 0;
         const fake = parseInt(stats.fake) || 0;
@@ -20,7 +22,7 @@ module.exports = {
         const inviteEmbed = new EmbedBuilder()
             .setColor('#5865F2')
             .setAuthor({ name: targetUser.tag, iconURL: targetUser.displayAvatarURL() })
-            .setDescription(`${targetUser}\nYou currently have **${total}** invites. (**${regular}** regular, **${left}** left, **${fake}** fake, **${bonus}** bonus)`)
+            .setDescription(`${targetUser}\nYou currently have **\${total}** invites. (**\${regular}** regular, **\${left}** left, **\${fake}** fake, **\${bonus}** bonus)`)
             .setTimestamp();
 
         await interaction.reply({ embeds: [inviteEmbed] });

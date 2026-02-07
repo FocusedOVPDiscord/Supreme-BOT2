@@ -93,7 +93,9 @@ class InviteManager {
 
     async resetAll(guildId) {
         try {
+            // Delete all invite stats for the guild
             await query('DELETE FROM invites WHERE guild_id = ?', [guildId]);
+            // Delete all join history for the guild to ensure a fresh start
             await query('DELETE FROM join_history WHERE guild_id = ?', [guildId]);
             return true;
         } catch (error) {
