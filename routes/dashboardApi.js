@@ -236,8 +236,51 @@ router.get('/tickets', requireAuth, async (req, res) => {
   const guild = getSelectedGuild(req);
   if (!guild) return res.status(404).json({ error: 'No server selected' });
 
-  const activeTickets = storage.get(guild.id, 'active_tickets') || {};
-  res.json(Object.values(activeTickets));
+  try {
+    // Fetch all channels to ensure cache is up to date
+    await guild.channels.fetch();
+    
+    // Filter for ticket channels (starting with 'ticket-')
+    const ticketChannels = guild.channels.cache.filter(c => 
+      c.type === ChannelType.GuildText && 
+      c.name && 
+      c.name.startsWith('ticket-')
+    );
+
+    const activeTickets = ticketChannels.map(channel => {
+      // Extract ticket number from name (e.g., 'ticket-0001' -> '0001')
+      const ticketNumber = channel.name.replace('ticket-', '');
+      
+      // Try to find the ticket creator from permission overwrites
+      // Usually the first non-staff, non-bot user
+      const creatorOverwrite = channel.permissionOverwrites.cache.find(p => 
+        p.type === 1 && // Member type
+        !STAFF_ROLE_IDS.includes(p.id) && 
+        p.id !== guild.client.user.id
+      );
+      
+      const creatorId = creatorOverwrite ? creatorOverwrite.id : 'Unknown';
+      const creator = guild.members.cache.get(creatorId);
+      
+      return {
+        id: channel.id,
+        ticketNumber: ticketNumber,
+        user: creator ? creator.user.username : 'Unknown User',
+        userId: creatorId,
+        status: 'Active',
+        created: channel.createdAt,
+        channelName: channel.name
+      };
+    });
+
+    // Sort by ticket number descending
+    activeTickets.sort((a, b) => b.ticketNumber.localeCompare(a.ticketNumber));
+
+    res.json(activeTickets);
+  } catch (error) {
+    console.error('Error fetching active tickets:', error);
+    res.status(500).json({ error: 'Failed to fetch active tickets' });
+  }
 });
 
 /**
