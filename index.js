@@ -201,6 +201,40 @@ client.once('ready', async () => {
     } catch (err) {
         console.error('[CACHE] ❌ Fatal error during cache initialization:', err);
     }
+
+    // --- STICKY NOTES FEATURE ---
+    const STICKY_CHANNEL_ID = '1451917967540355189';
+    const STICKY_INTERVAL = 10 * 60 * 1000; // 10 minutes
+    
+    console.log(`[STICKY] Initializing sticky notes for channel ${STICKY_CHANNEL_ID} every 10 minutes.`);
+    
+    setInterval(async () => {
+        try {
+            const channel = await client.channels.fetch(STICKY_CHANNEL_ID).catch(() => null);
+            if (!channel) {
+                console.warn(`[STICKY] Could not find channel ${STICKY_CHANNEL_ID}`);
+                return;
+            }
+
+            // Translation of the requested message:
+            // "Never hand over your items first! Always use a server middleman. 
+            // There are always tools like (DDoS - Lag - Crash), always use a middleman to guarantee your rights."
+            const stickyMessage = "🚨 **Never hand over your items first! Always use a server middleman.** 🚨\nThere are always tools like (DDoS - Lag - Crash), always use a middleman to guarantee your rights.";
+
+            // Optional: Delete previous sticky message to keep it at the bottom
+            const messages = await channel.messages.fetch({ limit: 10 });
+            const lastSticky = messages.find(m => m.author.id === client.user.id && m.content.includes("Never hand over your items first"));
+            
+            if (lastSticky) {
+                await lastSticky.delete().catch(() => null);
+            }
+
+            await channel.send(stickyMessage);
+            console.log(`[STICKY] Sent sticky message to ${channel.name}`);
+        } catch (err) {
+            console.error('[STICKY] Error sending sticky message:', err);
+        }
+    }, STICKY_INTERVAL);
 });
 
 /* ===============================
