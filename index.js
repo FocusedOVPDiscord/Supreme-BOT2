@@ -166,8 +166,10 @@ client.once('ready', async () => {
     console.log(`✅ [BOT] Online as ${client.user.tag}`);
     console.log(`📡 [BOT] Monitoring ${client.guilds.cache.size} guilds`);
     
-    // Cache invites and members safely
-    (async () => {
+    // CRITICAL FIX: Cache invites BEFORE the bot is fully ready
+    // This prevents race conditions where members join before cache is loaded
+    console.log('[CACHE] Starting invite cache initialization...');
+    try {
         for (const guild of client.guilds.cache.values()) {
             try {
                 // Fetch invites
@@ -191,9 +193,14 @@ client.once('ready', async () => {
                 console.log(`👥 [CACHE] Skip full member fetch for ${guild.name} to avoid rate limits. Cache size: ${guild.members.cache.size}`);
             } catch (err) {
                 console.warn(`⚠️ [CACHE] Could not fetch data for ${guild.name}: ${err.message}`);
+                // Initialize empty cache for this guild to prevent undefined errors
+                client.invites.set(guild.id, new Map());
             }
         }
-    })();
+        console.log('[CACHE] ✅ Invite cache initialization complete!');
+    } catch (err) {
+        console.error('[CACHE] ❌ Fatal error during cache initialization:', err);
+    }
 });
 
 /* ===============================

@@ -26,10 +26,32 @@ module.exports = {
         let inviterMention = "Unknown";
         try {
             const newInvites = await member.guild.invites.fetch();
-            const cachedInvites = member.client.invites.get(guildId) || new Map();
+            const cachedInvites = member.client.invites.get(guildId);
+            
+            // CRITICAL CHECK: Ensure cache is initialized
+            if (!cachedInvites) {
+                console.error(`[INVITES] ❌ Cache not initialized for guild ${guildId}! Initializing now...`);
+                // Emergency initialization
+                const inviteMap = new Map(newInvites.map(inv => [inv.code, inv.uses]));
+                member.client.invites.set(guildId, inviteMap);
+                console.warn(`[INVITES] ⚠️ Cache initialized on-the-fly. Invite tracking may be inaccurate for this join.`);
+                inviterMention = "Unknown (Cache Error)";
+                // Continue with welcome message but skip tracking
+                throw new Error('Cache was not initialized');
+            }
+            
+            console.log(`[INVITES] 🔍 Checking invites for ${member.user.tag}. Cached: ${cachedInvites.size}, Current: ${newInvites.size}`);
             
             // 1. Find the invite used
-            let invite = newInvites.find(i => i.uses > (cachedInvites.get(i.code) || 0));
+            let invite = newInvites.find(i => {
+                const cachedUses = cachedInvites.get(i.code) || 0;
+                const currentUses = i.uses || 0;
+                if (currentUses > cachedUses) {
+                    console.log(`[INVITES] 🎯 Found used invite: ${i.code} (${cachedUses} -> ${currentUses})`);
+                    return true;
+                }
+                return false;
+            });
             
             // 2. Check for Vanity URL if no regular invite was found
             let isVanity = false;
@@ -53,29 +75,46 @@ module.exports = {
             // 3. Handle Attribution
             if (invite || isVanity) {
                 const inviterId = isVanity ? "VANITY" : (invite.inviter ? invite.inviter.id : "UNKNOWN");
+                console.log(`[INVITES] 👤 Inviter identified: ${inviterId} (Vanity: ${isVanity})`);
+                
                 if (!isVanity && inviterId !== "UNKNOWN") {
                     inviterMention = `<@${inviterId}>`;
+                } else if (isVanity) {
+                    inviterMention = "Vanity URL (Custom)";
                 }
 
-                const isFake = inviteManager.isFakeMember(member);
+                let isFake = inviteManager.isFakeMember(member);
                 const joinedBefore = await inviteManager.hasJoinedBefore(guildId, member.id);
+
+                // ANTI-FARM: Self-Invite Protection
+                if (inviterId === member.id) {
+                    console.log(`[ANTI-FARM] ${member.user.tag} tried to invite themselves. Flagging as fake.`);
+                    isFake = true;
+                }
+                
+                console.log(`[INVITES] Member status: Fake=${isFake}, JoinedBefore=${joinedBefore}`);
                 
                 // ALWAYS record the join and RESET has_left
                 await inviteManager.recordJoin(guildId, member.id, inviterId, isFake);
+                console.log(`[INVITES] ✅ Join recorded in database`);
 
                 if (!joinedBefore) {
                     // Credit the inviter and sync stats to ensure accuracy
                     await inviteManager.syncUserInvites(guildId, inviterId);
-                    console.log(`[INVITES] New member ${member.user.tag} joined via ${isVanity ? 'Vanity' : inviterId}. Stats synced.`);
+                    console.log(`[INVITES] ✅ New member ${member.user.tag} joined via ${isVanity ? 'Vanity' : inviterId}. Stats synced.`);
                 } else {
                     // Still sync stats for the inviter who originally invited them, 
                     // just in case their 'left' count needs healing.
                     await inviteManager.syncUserInvites(guildId, inviterId);
-                    console.log(`[INVITES] Returning member ${member.user.tag} joined. Stats synced (Antifarm).`);
+                    console.log(`[INVITES] 🔄 Returning member ${member.user.tag} joined. Stats synced (Antifarm).`);
                 }
+            } else {
+                console.warn(`[INVITES] ⚠️ No invite found for ${member.user.tag}. Possible reasons: Bot invite, OAuth2, or cache desync.`);
+                inviterMention = "Unknown (No Invite Found)";
             }
         } catch (e) { 
-            console.error('[INVITES] Error tracking join:', e); 
+            console.error('[INVITES] ❌ Error tracking join:', e);
+            console.error('[INVITES] Stack trace:', e.stack);
         }
 
         // --- 3. WELCOME MESSAGE LOGIC ---

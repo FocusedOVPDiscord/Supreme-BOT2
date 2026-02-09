@@ -53,10 +53,22 @@ class InviteManager {
     }
 
     isFakeMember(member) {
+        // 1. Account Age Check (Default 7 days / 168h)
         const accountAge = Date.now() - member.user.createdTimestamp;
-        const threshold = 168 * 60 * 60 * 1000; // Default 168h
-        if (accountAge < threshold) return true;
-        if (!member.user.avatar) return true;
+        const threshold = 168 * 60 * 60 * 1000; 
+        if (accountAge < threshold) {
+            console.log(`[ANTI-FARM] ${member.user.tag} flagged as FAKE: Account too young (${Math.round(accountAge / 3600000)}h)`);
+            return true;
+        }
+
+        // 2. No Avatar Check
+        if (!member.user.avatar) {
+            console.log(`[ANTI-FARM] ${member.user.tag} flagged as FAKE: No avatar`);
+            return true;
+        }
+
+        // 3. Self-Invite Check (Handled in welcome-message.js but good to have here)
+        
         return false;
     }
 
@@ -123,28 +135,53 @@ class InviteManager {
     }
 
     async syncUserInvites(guildId, userId) {
+        // Skip sync for system/unknown inviters
+        if (!userId || userId === 'UNKNOWN' || userId === 'VANITY') return;
+
         try {
-            // Count actual regular and left from join_history
+            console.log(`[SYNC] Starting sync for user ${userId} in guild ${guildId}`);
+            
+            // ANTI-FARM: We only count unique joins. If a user joins, leaves, and joins again, 
+            // they should only count as 1 regular invite if they are currently in the server.
+            // However, the current logic counts every record in join_history.
+            // To match professional bots, we should count:
+            // Regular = Users who are currently in the server (has_left = 0) AND not fake
+            // Left = Users who were invited by this person but are no longer in the server (has_left = 1) AND not fake
+            
+            // ANTI-FARM: We count UNIQUE users (user_id) to prevent duplicate counting 
+            // if someone joins and leaves multiple times.
             const stats = await query(
-                'SELECT COUNT(*) as total, SUM(CASE WHEN has_left = 1 THEN 1 ELSE 0 END) as left_count, SUM(CASE WHEN is_fake = 1 THEN 1 ELSE 0 END) as fake_count FROM join_history WHERE guild_id = ? AND inviter_id = ?',
+                `SELECT 
+                    COUNT(DISTINCT CASE WHEN has_left = 0 AND is_fake = 0 THEN user_id END) as regular_count,
+                    COUNT(DISTINCT CASE WHEN has_left = 1 AND is_fake = 0 THEN user_id END) as left_count,
+                    COUNT(DISTINCT CASE WHEN is_fake = 1 THEN user_id END) as fake_count
+                 FROM join_history 
+                 WHERE guild_id = ? AND inviter_id = ?`,
                 [guildId, userId]
             );
 
             if (stats.length > 0) {
                 const row = stats[0];
-                const regular = (row.total || 0) - (row.fake_count || 0);
+                const regular = row.regular_count || 0;
                 const left = row.left_count || 0;
                 const fake = row.fake_count || 0;
 
-                // Update the main invites table with these REAL numbers
-                await query(
-                    'UPDATE invites SET regular = ?, left_count = ?, fake = ? WHERE guild_id = ? AND user_id = ?',
-                    [regular, left, fake, guildId, userId]
+                // Get current bonus value to preserve it
+                const currentData = await query(
+                    'SELECT bonus FROM invites WHERE guild_id = ? AND user_id = ?',
+                    [guildId, userId]
                 );
-                console.log(`[SYNC] Synced stats for ${userId}: ${regular} reg, ${left} left, ${fake} fake`);
+                const bonus = (currentData.length > 0) ? (currentData[0].bonus || 0) : 0;
+
+                // Update or insert the main invites table
+                await query(
+                    'INSERT INTO invites (guild_id, user_id, regular, fake, bonus, left_count) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE regular=?, fake=?, left_count=?',
+                    [guildId, userId, regular, fake, bonus, left, regular, fake, left]
+                );
+                console.log(`[SYNC] ✅ Anti-Farm Sync for ${userId}: ${regular} reg (active), ${left} left, ${fake} fake, ${bonus} bonus`);
             }
         } catch (error) {
-            console.error('Error syncing user invites:', error);
+            console.error('[SYNC] ❌ Error syncing user invites:', error);
         }
     }
 
