@@ -4,34 +4,40 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('help')
         .setDescription('Display all available commands and bot information'),
-
     async execute(interaction) {
+        const { client } = interaction;
+        
         const helpEmbed = new EmbedBuilder()
             .setAuthor({ 
                 name: 'Supreme Support', 
-                iconURL: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663279443187/quPXEUrjrufgRMwQ.webp' 
-            } )
+                iconURL: client.user.displayAvatarURL() 
+            })
             .setTitle('Bot Command Directory')
             .setDescription('Welcome to the **Supreme** command menu. Below you will find all available commands categorized by their functionality.')
-            .setColor('#00FF00')
+            .setColor('#00FFFF')
             .addFields(
                 { 
-                    name: 'Information Commands', 
-                    value: 'ï `/help` - Show this menu\nï `/info ping` - Check bot latency\nï `/info server` - Get server information\nï `/info user` - Get user information',
+                    name: 'üõ°Ô∏è Information & Support', 
+                    value: '‚Ä¢ `/help` - Show this menu\n‚Ä¢ `/about` - Information about Supreme\n‚Ä¢ `/info ping` - Check bot latency\n‚Ä¢ `/info server` - Get server information\n‚Ä¢ `/info user` - Get user information\n‚Ä¢ `/info avatar` - Get a user\'s avatar',
                     inline: false 
                 },
                 { 
-                    name: 'Moderation Commands', 
-                    value: 'ï `/mod ban` - Ban a member\nï `/mod clear` - Bulk delete messages\nï `/mod kick` - Kick a member\nï `/mod mute` - Timeout a member\nï `/mod warn` - Warn a member',
+                    name: 'üìà Invite Tracking', 
+                    value: '‚Ä¢ `/invites` - Check your or another user\'s invites\n‚Ä¢ `/invite-leaderboard` - View the top inviters',
                     inline: false 
                 },
                 { 
-                    name: 'Management & Utility', 
-                    value: 'ï `/add-member` - Add a member to the ticket\nï `/give-role` - Assign a role to a user\nï `/roles` - Manage server roles\nï `/tickets` - Send the ticket panel',
+                    name: 'üé´ Tickets & Applications', 
+                    value: '‚Ä¢ `/mm-apply` - Apply for Middleman Trainee\n‚Ä¢ `/send-middleman-info` - Get information about our MM service',
+                    inline: false 
+                },
+                { 
+                    name: 'üéâ Giveaways', 
+                    value: '‚Ä¢ `/giveaway-list` - List all active giveaways',
                     inline: false 
                 }
             )
-            .setFooter({ text: 'Supreme | Professional Discord Solutions' })
+            .setFooter({ text: 'Supreme | Professional Discord Solutions', iconURL: client.user.displayAvatarURL() })
             .setTimestamp();
 
         await interaction.reply({ embeds: [helpEmbed] });
