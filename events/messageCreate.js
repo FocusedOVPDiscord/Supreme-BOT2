@@ -43,6 +43,38 @@ module.exports = {
                                     message.delete().catch(() => null);
                                     reply.delete().catch(() => null);
                                 }, 5000);
+                            } else if (vcAction.action === 'permit') {
+                                await voiceChannel.permissionOverwrites.edit(targetUser.id, { [PermissionFlagsBits.Connect]: true, [PermissionFlagsBits.ViewChannel]: true });
+                                const reply = await message.reply(`✅ <@${targetUser.id}> is now **permitted** to join your room.`);
+                                setTimeout(() => {
+                                    message.delete().catch(() => null);
+                                    reply.delete().catch(() => null);
+                                }, 5000);
+                            } else if (vcAction.action === 'reject') {
+                                await voiceChannel.permissionOverwrites.edit(targetUser.id, { [PermissionFlagsBits.Connect]: false, [PermissionFlagsBits.ViewChannel]: false });
+                                const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
+                                if (targetMember && targetMember.voice.channelId === voiceChannel.id) await targetMember.voice.disconnect();
+                                const reply = await message.reply(`❌ <@${targetUser.id}> has been **rejected** from your room.`);
+                                setTimeout(() => {
+                                    message.delete().catch(() => null);
+                                    reply.delete().catch(() => null);
+                                }, 5000);
+                            } else if (vcAction.action === 'kick') {
+                                const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
+                                if (targetMember && targetMember.voice.channelId === voiceChannel.id) {
+                                    await targetMember.voice.disconnect();
+                                    const reply = await message.reply(`👞 <@${targetUser.id}> has been **kicked** from your room.`);
+                                    setTimeout(() => {
+                                        message.delete().catch(() => null);
+                                        reply.delete().catch(() => null);
+                                    }, 5000);
+                                } else {
+                                    const reply = await message.reply("❌ That user is not in your voice channel.");
+                                    setTimeout(() => {
+                                        message.delete().catch(() => null);
+                                        reply.delete().catch(() => null);
+                                    }, 5000);
+                                }
                             }
                         } else {
                             const reply = await message.reply("❌ Your voice channel no longer exists.");

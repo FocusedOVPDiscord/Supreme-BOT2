@@ -278,24 +278,24 @@ client.once('ready', async () => {
                     .setTimestamp();
 
                 const row1 = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId(`vc_rename_persistent`).setLabel('Rename').setEmoji('📝').setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder().setCustomId(`vc_limit_persistent`).setLabel('Limit').setEmoji('👥').setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder().setCustomId(`vc_lock_persistent`).setLabel('Lock').setEmoji('🔒').setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder().setCustomId(`vc_unlock_persistent`).setLabel('Unlock').setEmoji('🔓').setStyle(ButtonStyle.Secondary)
+                    new ButtonBuilder().setCustomId(`vc_rename_persistent`).setLabel('Rename').setEmoji('<:rename:1470701630180950056>').setStyle(ButtonStyle.Secondary),
+                    new ButtonBuilder().setCustomId(`vc_limit_persistent`).setLabel('Limit').setEmoji('<:limit:1470701632148082718>').setStyle(ButtonStyle.Secondary),
+                    new ButtonBuilder().setCustomId(`vc_lock_persistent`).setLabel('Lock').setEmoji('<:lock:1470701634140373002>').setStyle(ButtonStyle.Secondary),
+                    new ButtonBuilder().setCustomId(`vc_unlock_persistent`).setLabel('Unlock').setEmoji('<:unlock:1470701636111826954>').setStyle(ButtonStyle.Secondary)
                 );
 
                 const row2 = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId(`vc_hide_persistent`).setLabel('Hide').setEmoji('👻').setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder().setCustomId(`vc_show_persistent`).setLabel('Show').setEmoji('👁️').setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder().setCustomId(`vc_permit_persistent`).setLabel('Permit').setEmoji('✅').setStyle(ButtonStyle.Success),
-                    new ButtonBuilder().setCustomId(`vc_reject_persistent`).setLabel('Reject').setEmoji('❌').setStyle(ButtonStyle.Danger)
+                    new ButtonBuilder().setCustomId(`vc_hide_persistent`).setLabel('Hide').setEmoji('<:hide:1470701638104121364>').setStyle(ButtonStyle.Secondary),
+                    new ButtonBuilder().setCustomId(`vc_show_persistent`).setLabel('Show').setEmoji('<:show:1470701640100614154>').setStyle(ButtonStyle.Secondary),
+                    new ButtonBuilder().setCustomId(`vc_permit_persistent`).setLabel('Permit').setEmoji('<:permit:1470701642101194772>').setStyle(ButtonStyle.Success),
+                    new ButtonBuilder().setCustomId(`vc_reject_persistent`).setLabel('Reject').setEmoji('<:reject:1470701644101885972>').setStyle(ButtonStyle.Danger)
                 );
 
                 const row3 = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId(`vc_kick_persistent`).setLabel('Kick').setEmoji('👞').setStyle(ButtonStyle.Danger),
-                    new ButtonBuilder().setCustomId(`vc_mute_persistent`).setLabel('Mute').setEmoji('🔇').setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder().setCustomId(`vc_unmute_persistent`).setLabel('Unmute').setEmoji('🔊').setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder().setCustomId(`vc_claim_persistent`).setLabel('Claim').setEmoji('👑').setStyle(ButtonStyle.Primary)
+                    new ButtonBuilder().setCustomId(`vc_kick_persistent`).setLabel('Kick').setEmoji('<:kick:1470701646102560828>').setStyle(ButtonStyle.Danger),
+                    new ButtonBuilder().setCustomId(`vc_mute_persistent`).setLabel('Mute').setEmoji('<:mute:1470701648103215104>').setStyle(ButtonStyle.Secondary),
+                    new ButtonBuilder().setCustomId(`vc_unmute_persistent`).setLabel('Unmute').setEmoji('<:unmute:1470701650103894026>').setStyle(ButtonStyle.Secondary),
+                    new ButtonBuilder().setCustomId(`vc_claim_persistent`).setLabel('Claim').setEmoji('<:claim:1470701652104544266>').setStyle(ButtonStyle.Primary)
                 );
 
                 await controlChannel.send({

@@ -256,16 +256,18 @@ module.exports = {
                     if (!voiceChannel || !voiceChannel.name.includes("'s Room")) {
                         return interaction.reply({ content: "❌ You must be in a temporary voice channel to claim it!", flags: [MessageFlags.Ephemeral] });
                     }
-                    if (voiceChannel.name.includes(user.username)) {
-                        return interaction.reply({ content: "❌ You already own this room!", flags: [MessageFlags.Ephemeral] });
-                    }
                     // Logic to claim if owner left (handled in switch)
                 } else {
                     // For all other actions, user MUST be in their own room
                     if (!voiceChannel) {
                         return interaction.reply({ content: "❌ You must be in your voice channel to use these controls!", flags: [MessageFlags.Ephemeral] });
                     }
-                    if (!voiceChannel.name.includes("'s Room") || !voiceChannel.name.includes(user.username)) {
+                    
+                    // Improved detection: Check if the user's username is in the channel name
+                    // We use a more flexible check to avoid issues with symbols or prefixes
+                    const isOwner = voiceChannel.name.toLowerCase().includes(user.username.toLowerCase());
+                    
+                    if (!voiceChannel.name.includes("'s Room") || !isOwner) {
                         return interaction.reply({ content: "❌ You can only control your own temporary voice channel!", flags: [MessageFlags.Ephemeral] });
                     }
                 }
@@ -314,40 +316,22 @@ module.exports = {
                         return await interaction.showModal(limitModal);
 
                     case 'permit':
-                        const permitModal = new ModalBuilder()
-                            .setCustomId(`vc_permit_modal_${user.id}`)
-                            .setTitle('Permit User');
-                        const permitInput = new TextInputBuilder()
-                            .setCustomId('user_id')
-                            .setLabel('User ID to Permit')
-                            .setStyle(TextInputStyle.Short)
-                            .setRequired(true);
-                        permitModal.addComponents(new ActionRowBuilder().addComponents(permitInput));
-                        return await interaction.showModal(permitModal);
+                        await channel.permissionOverwrites.edit(user.id, { [PermissionFlagsBits.SendMessages]: true });
+                        await interaction.reply({ content: "✅ Channel unlocked! Please **@mention** the user you want to **permit**.", flags: [MessageFlags.Ephemeral] });
+                        await storage.set(guild.id, `vc_action_${user.id}`, { action: 'permit', channelId: voiceChannel.id });
+                        return;
 
                     case 'reject':
-                        const rejectModal = new ModalBuilder()
-                            .setCustomId(`vc_reject_modal_${user.id}`)
-                            .setTitle('Reject User');
-                        const rejectInput = new TextInputBuilder()
-                            .setCustomId('user_id')
-                            .setLabel('User ID to Reject')
-                            .setStyle(TextInputStyle.Short)
-                            .setRequired(true);
-                        rejectModal.addComponents(new ActionRowBuilder().addComponents(rejectInput));
-                        return await interaction.showModal(rejectModal);
+                        await channel.permissionOverwrites.edit(user.id, { [PermissionFlagsBits.SendMessages]: true });
+                        await interaction.reply({ content: "❌ Channel unlocked! Please **@mention** the user you want to **reject**.", flags: [MessageFlags.Ephemeral] });
+                        await storage.set(guild.id, `vc_action_${user.id}`, { action: 'reject', channelId: voiceChannel.id });
+                        return;
 
                     case 'kick':
-                        const kickModal = new ModalBuilder()
-                            .setCustomId(`vc_kick_modal_${user.id}`)
-                            .setTitle('Kick User');
-                        const kickInput = new TextInputBuilder()
-                            .setCustomId('user_id')
-                            .setLabel('User ID to Kick')
-                            .setStyle(TextInputStyle.Short)
-                            .setRequired(true);
-                        kickModal.addComponents(new ActionRowBuilder().addComponents(kickInput));
-                        return await interaction.showModal(kickModal);
+                        await channel.permissionOverwrites.edit(user.id, { [PermissionFlagsBits.SendMessages]: true });
+                        await interaction.reply({ content: "👞 Channel unlocked! Please **@mention** the user you want to **kick**.", flags: [MessageFlags.Ephemeral] });
+                        await storage.set(guild.id, `vc_action_${user.id}`, { action: 'kick', channelId: voiceChannel.id });
+                        return;
 
                     case 'mute':
                         // Unlock channel for the owner to mention
