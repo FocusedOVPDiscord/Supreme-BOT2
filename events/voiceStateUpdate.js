@@ -65,30 +65,35 @@ module.exports = {
             }
         }
 
-        // User left a temporary voice channel
-        if (oldState.channelId && oldState.channelId !== newState.channelId) {
-            const channel = oldState.channel;
+        // Handle temporary voice channel cleanup
+        // We check both when someone leaves (oldState) and when someone joins/moves (newState)
+        // to ensure we catch all empty channel scenarios
+        const checkChannel = oldState.channel || newState.channel;
+        
+        if (checkChannel && checkChannel.name.includes("'s Room")) {
+            // Re-fetch the channel to get the most up-to-date member count
+            const channel = await guild.channels.fetch(checkChannel.id).catch(() => null);
             
-            // Check if this is a tracked temporary voice channel
-            const ownerId = channelOwners.get(oldState.channelId);
-            
-            if (channel && ownerId && channel.members.size === 0) {
+            if (channel && channel.members.size === 0) {
                 try {
                     console.log(`[VOICE] Deleting empty voice channel ${channel.name} (${channel.id})`);
                     
-                    // Control panel is persistent, no need to delete per channel
-                    console.log(`[VOICE] Voice channel for ${ownerId} deleted. Persistent control room remains.`);
+                    // Find the owner to clean up tracking
+                    const ownerId = channelOwners.get(channel.id);
                     
                     // Delete the voice channel
                     await channel.delete();
                     
                     // Clean up tracking maps
-                    activeVoiceChannels.delete(ownerId);
-                    channelOwners.delete(oldState.channelId);
+                    if (ownerId) activeVoiceChannels.delete(ownerId);
+                    channelOwners.delete(channel.id);
                     
-                    console.log(`[VOICE] Successfully cleaned up voice channel for ${ownerId}`);
+                    console.log(`[VOICE] Successfully cleaned up empty voice channel.`);
                 } catch (error) {
-                    console.error('[VOICE] Error deleting voice channel:', error);
+                    // Ignore 10003 (Unknown Channel) as it might already be deleted
+                    if (error.code !== 10003) {
+                        console.error('[VOICE] Error deleting voice channel:', error);
+                    }
                 }
             }
         }

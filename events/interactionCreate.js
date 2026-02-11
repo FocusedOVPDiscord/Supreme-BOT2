@@ -354,13 +354,37 @@ module.exports = {
                         return;
 
                     case 'claim':
-                        if (voiceChannel && voiceChannel.members.size > 0 && !voiceChannel.name.includes(user.username)) {
-                            // Logic to claim if owner left
-                            await voiceChannel.setName(`🔊 ${user.username}'s Room`);
-                            // Update permissions...
-                            return interaction.reply({ content: "👑 You have claimed this room!", flags: [MessageFlags.Ephemeral] });
+                        if (voiceChannel && voiceChannel.name.includes("'s Room")) {
+                            // Check if the current owner is still in the channel
+                            const ownerNamePart = voiceChannel.name.split("'s")[0].replace('🔊 ', '').toLowerCase();
+                            const isCurrentOwnerInChannel = voiceChannel.members.some(m => m.user.username.toLowerCase() === ownerNamePart);
+                            
+                            if (isCurrentOwnerInChannel) {
+                                return interaction.reply({ content: "❌ The owner is still in this room! You cannot claim it.", flags: [MessageFlags.Ephemeral] });
+                            }
+
+                            // If owner is gone, allow the new user to claim it
+                            try {
+                                await voiceChannel.setName(`🔊 ${user.username}'s Room`);
+                                
+                                // Give the new owner full permissions
+                                await voiceChannel.permissionOverwrites.edit(user.id, {
+                                    [PermissionFlagsBits.Connect]: true,
+                                    [PermissionFlagsBits.Speak]: true,
+                                    [PermissionFlagsBits.Stream]: true,
+                                    [PermissionFlagsBits.MuteMembers]: true,
+                                    [PermissionFlagsBits.DeafenMembers]: true,
+                                    [PermissionFlagsBits.MoveMembers]: true,
+                                    [PermissionFlagsBits.ManageChannels]: true
+                                });
+
+                                return interaction.reply({ content: `👑 You have successfully claimed this room! It is now **${user.username}'s Room**.`, flags: [MessageFlags.Ephemeral] });
+                            } catch (err) {
+                                console.error('[VOICE CLAIM] Error:', err);
+                                return interaction.reply({ content: "❌ Failed to claim the room. Please try again.", flags: [MessageFlags.Ephemeral] });
+                            }
                         }
-                        return interaction.reply({ content: "You cannot claim this room right now.", flags: [MessageFlags.Ephemeral] });
+                        return interaction.reply({ content: "❌ You must be in a temporary voice channel to claim it.", flags: [MessageFlags.Ephemeral] });
                 }
             }
 
