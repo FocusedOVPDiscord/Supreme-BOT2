@@ -248,7 +248,11 @@ module.exports = {
 
             // --- VOICE CHANNEL CONTROL HANDLERS ---
             if (customId.startsWith('vc_')) {
-                const [prefix, action, ownerId] = customId.split('_');
+                const [prefix, action, idPart] = customId.split('_');
+                
+                // For persistent buttons, we check if the user is the owner of the room they are in
+                // For legacy buttons, we check the ownerId in the customId
+                const ownerId = idPart === 'persistent' ? user.id : idPart;
                 
                 // Only the owner can use these buttons, except for 'claim'
                 if (user.id !== ownerId && action !== 'claim') {
@@ -271,6 +275,11 @@ module.exports = {
                     }
                 }
                 
+                // Ensure the owner is controlling THEIR OWN room
+                if (voiceChannel && !voiceChannel.name.includes(user.username) && action !== 'claim') {
+                    return interaction.reply({ content: "❌ You can only control your own room!", flags: [MessageFlags.Ephemeral] });
+                }
+                
                 switch (action) {
                     case 'lock':
                         await voiceChannel.permissionOverwrites.edit(guild.id, { [PermissionFlagsBits.Connect]: false });
@@ -290,7 +299,7 @@ module.exports = {
 
                     case 'rename':
                         const renameModal = new ModalBuilder()
-                            .setCustomId(`vc_rename_modal_${ownerId}`)
+                            .setCustomId(`vc_rename_modal_${user.id}`)
                             .setTitle('Rename Your Room');
                         const nameInput = new TextInputBuilder()
                             .setCustomId('new_name')
@@ -303,7 +312,7 @@ module.exports = {
 
                     case 'limit':
                         const limitModal = new ModalBuilder()
-                            .setCustomId(`vc_limit_modal_${ownerId}`)
+                            .setCustomId(`vc_limit_modal_${user.id}`)
                             .setTitle('Set User Limit');
                         const limitInput = new TextInputBuilder()
                             .setCustomId('new_limit')
@@ -316,7 +325,7 @@ module.exports = {
 
                     case 'permit':
                         const permitModal = new ModalBuilder()
-                            .setCustomId(`vc_permit_modal_${ownerId}`)
+                            .setCustomId(`vc_permit_modal_${user.id}`)
                             .setTitle('Permit User');
                         const permitInput = new TextInputBuilder()
                             .setCustomId('user_id')
@@ -328,7 +337,7 @@ module.exports = {
 
                     case 'reject':
                         const rejectModal = new ModalBuilder()
-                            .setCustomId(`vc_reject_modal_${ownerId}`)
+                            .setCustomId(`vc_reject_modal_${user.id}`)
                             .setTitle('Reject User');
                         const rejectInput = new TextInputBuilder()
                             .setCustomId('user_id')
@@ -340,7 +349,7 @@ module.exports = {
 
                     case 'kick':
                         const kickModal = new ModalBuilder()
-                            .setCustomId(`vc_kick_modal_${ownerId}`)
+                            .setCustomId(`vc_kick_modal_${user.id}`)
                             .setTitle('Kick User');
                         const kickInput = new TextInputBuilder()
                             .setCustomId('user_id')
@@ -351,28 +360,22 @@ module.exports = {
                         return await interaction.showModal(kickModal);
 
                     case 'mute':
-                        const muteModal = new ModalBuilder()
-                            .setCustomId(`vc_mute_modal_${ownerId}`)
-                            .setTitle('Mute User');
-                        const muteInput = new TextInputBuilder()
-                            .setCustomId('user_id')
-                            .setLabel('User ID to Mute')
-                            .setStyle(TextInputStyle.Short)
-                            .setRequired(true);
-                        muteModal.addComponents(new ActionRowBuilder().addComponents(muteInput));
-                        return await interaction.showModal(muteModal);
+                        // Unlock channel for the owner to mention
+                        await channel.permissionOverwrites.edit(user.id, { [PermissionFlagsBits.SendMessages]: true });
+                        await interaction.reply({ content: "🔊 Channel unlocked! Please **@mention** the user you want to **mute**.", flags: [MessageFlags.Ephemeral] });
+                        
+                        // Store state for messageCreate
+                        await storage.set(guild.id, `vc_action_${user.id}`, { action: 'mute', channelId: voiceChannel.id });
+                        return;
 
                     case 'unmute':
-                        const unmuteModal = new ModalBuilder()
-                            .setCustomId(`vc_unmute_modal_${ownerId}`)
-                            .setTitle('Unmute User');
-                        const unmuteInput = new TextInputBuilder()
-                            .setCustomId('user_id')
-                            .setLabel('User ID to Unmute')
-                            .setStyle(TextInputStyle.Short)
-                            .setRequired(true);
-                        unmuteModal.addComponents(new ActionRowBuilder().addComponents(unmuteInput));
-                        return await interaction.showModal(unmuteModal);
+                        // Unlock channel for the owner to mention
+                        await channel.permissionOverwrites.edit(user.id, { [PermissionFlagsBits.SendMessages]: true });
+                        await interaction.reply({ content: "🔊 Channel unlocked! Please **@mention** the user you want to **unmute**.", flags: [MessageFlags.Ephemeral] });
+                        
+                        // Store state for messageCreate
+                        await storage.set(guild.id, `vc_action_${user.id}`, { action: 'unmute', channelId: voiceChannel.id });
+                        return;
 
                     case 'claim':
                         if (voiceChannel && voiceChannel.members.size > 0 && !voiceChannel.name.includes(user.username)) {

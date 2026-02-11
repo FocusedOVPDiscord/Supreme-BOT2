@@ -28,7 +28,7 @@ module.exports = {
                     permissionOverwrites: [
                         {
                             id: guild.id,
-                            deny: [PermissionFlagsBits.Connect], // Lock by default
+                            allow: [PermissionFlagsBits.Connect, PermissionFlagsBits.ViewChannel], // Public by default
                         },
                         {
                             id: member.id,
@@ -38,7 +38,8 @@ module.exports = {
                                 PermissionFlagsBits.Stream,
                                 PermissionFlagsBits.MuteMembers,
                                 PermissionFlagsBits.DeafenMembers,
-                                PermissionFlagsBits.MoveMembers
+                                PermissionFlagsBits.MoveMembers,
+                                PermissionFlagsBits.ManageChannels // Allow owner to manage
                             ],
                         },
                     ],
@@ -53,52 +54,8 @@ module.exports = {
                 
                 console.log(`[VOICE] Created voice channel for ${member.user.tag} (${voiceChannel.id})`);
 
-                // Send control panel in the control channel
-                const controlChannel = await guild.channels.fetch(CONTROL_CHANNEL_ID);
-                if (controlChannel) {
-                    const controlEmbed = new EmbedBuilder()
-                        .setTitle('Temp Control')
-                        .setDescription(`Control panel for <@${member.id}>'s room.\nUse the buttons below to manage your temporary voice channel.`)
-                        .setColor('#2F3136')
-                        .setFooter({ text: 'Supreme Voice Control' })
-                        .setTimestamp();
-
-                    const row1 = new ActionRowBuilder().addComponents(
-                        new ButtonBuilder().setCustomId(`vc_rename_${member.id}`).setLabel('Rename').setEmoji('📝').setStyle(ButtonStyle.Secondary),
-                        new ButtonBuilder().setCustomId(`vc_limit_${member.id}`).setLabel('Limit').setEmoji('👥').setStyle(ButtonStyle.Secondary),
-                        new ButtonBuilder().setCustomId(`vc_lock_${member.id}`).setLabel('Lock').setEmoji('🔒').setStyle(ButtonStyle.Secondary),
-                        new ButtonBuilder().setCustomId(`vc_unlock_${member.id}`).setLabel('Unlock').setEmoji('🔓').setStyle(ButtonStyle.Secondary)
-                    );
-
-                    const row2 = new ActionRowBuilder().addComponents(
-                        new ButtonBuilder().setCustomId(`vc_hide_${member.id}`).setLabel('Hide').setEmoji('👻').setStyle(ButtonStyle.Secondary),
-                        new ButtonBuilder().setCustomId(`vc_show_${member.id}`).setLabel('Show').setEmoji('👁️').setStyle(ButtonStyle.Secondary),
-                        new ButtonBuilder().setCustomId(`vc_permit_${member.id}`).setLabel('Permit').setEmoji('✅').setStyle(ButtonStyle.Success),
-                        new ButtonBuilder().setCustomId(`vc_reject_${member.id}`).setLabel('Reject').setEmoji('❌').setStyle(ButtonStyle.Danger)
-                    );
-
-                    const row3 = new ActionRowBuilder().addComponents(
-                        new ButtonBuilder().setCustomId(`vc_kick_${member.id}`).setLabel('Kick').setEmoji('👞').setStyle(ButtonStyle.Danger),
-                        new ButtonBuilder().setCustomId(`vc_mute_${member.id}`).setLabel('Mute').setEmoji('🔇').setStyle(ButtonStyle.Secondary),
-                        new ButtonBuilder().setCustomId(`vc_unmute_${member.id}`).setLabel('Unmute').setEmoji('🔊').setStyle(ButtonStyle.Secondary),
-                        new ButtonBuilder().setCustomId(`vc_claim_${member.id}`).setLabel('Claim').setEmoji('👑').setStyle(ButtonStyle.Primary)
-                    );
-
-                    const controlMessage = await controlChannel.send({
-                        content: `<@${member.id}>`,
-                        embeds: [controlEmbed],
-                        components: [row1, row2, row3]
-                    });
-                    
-                    // Store control message ID for cleanup
-                    const channelData = activeVoiceChannels.get(member.id);
-                    if (channelData) {
-                        channelData.controlMessageId = controlMessage.id;
-                        activeVoiceChannels.set(member.id, channelData);
-                    }
-                    
-                    console.log(`[VOICE] Sent control panel for ${member.user.tag} in ${controlChannel.name}`);
-                }
+                // Control panel is now persistent, no need to send per channel
+                console.log(`[VOICE] Voice channel created for ${member.user.tag}. Persistent control room is active.`);
             } catch (error) {
                 console.error('Error creating voice channel:', error);
             }
@@ -115,22 +72,8 @@ module.exports = {
                 try {
                     console.log(`[VOICE] Deleting empty voice channel ${channel.name} (${channel.id})`);
                     
-                    // Delete the control panel message
-                    const channelData = activeVoiceChannels.get(ownerId);
-                    if (channelData && channelData.controlMessageId) {
-                        try {
-                            const controlChannel = await guild.channels.fetch(CONTROL_CHANNEL_ID);
-                            if (controlChannel) {
-                                const controlMessage = await controlChannel.messages.fetch(channelData.controlMessageId).catch(() => null);
-                                if (controlMessage) {
-                                    await controlMessage.delete();
-                                    console.log(`[VOICE] Deleted control panel message for ${ownerId}`);
-                                }
-                            }
-                        } catch (err) {
-                            console.warn(`[VOICE] Could not delete control message: ${err.message}`);
-                        }
-                    }
+                    // Control panel is persistent, no need to delete per channel
+                    console.log(`[VOICE] Voice channel for ${ownerId} deleted. Persistent control room remains.`);
                     
                     // Delete the voice channel
                     await channel.delete();

@@ -48,12 +48,22 @@ app.get('/health', (req, res) => {
 
 ## 🎙️ Voice Channel Feature Fixes
 
-### Issue 2: Voice Channel Creation Not Working
-**Problem**: When users joined the "Join to Create" channel (ID: `1470577500336685178`), nothing happened. The control panel was not being sent to the control channel (ID: `1470577900540661925`).
+### Issue 2: Voice Channel Creation & Control Room
+**Problem**: 
+1. Voice channels were private by default.
+2. Control panels were sent per-channel, cluttering the control room.
+3. Mute/Unmute required manual ID entry.
+4. Non-owners could potentially trigger controls.
 
-**Root Cause**: The bot was missing the `GuildVoiceStates` intent, which is required to receive `voiceStateUpdate` events.
+**Solutions**:
+1. **Public Channels**: Channels are now public by default (`ViewChannel: true`, `Connect: true`).
+2. **Persistent Control Room**: A single, permanent control panel is used.
+3. **Mention-based Mute/Unmute**: Owners click Mute/Unmute, the channel unlocks for them to @mention a user, then re-locks.
+4. **Owner-Only Validation**: Controls only work if the user is in their own room.
 
-**Solution**: Added `GuildVoiceStates` intent to the Discord client configuration.
+**Changes in `index.js`**:
+- Added `GuildVoiceStates` intent.
+- Improved health check grace period.
 
 **Changes in `index.js`**:
 ```javascript
