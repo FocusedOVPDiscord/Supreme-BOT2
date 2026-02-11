@@ -107,8 +107,22 @@ module.exports = {
                             message.delete().catch(() => null);
                             reply.delete().catch(() => null);
                         }, 5000);
+                    } else {
+                        // If they sent a message but didn't mention anyone and didn't say cancel
+                        const reply = await message.reply(`⚠️ Please **@mention** a user to perform this action, or type \`cancel\` to stop.`);
+                        setTimeout(() => {
+                            message.delete().catch(() => null);
+                            reply.delete().catch(() => null);
+                        }, 5000);
                     }
                 }
+                return;
+            } else {
+                // If anyone sends a message in the control room without an active action
+                // We delete it to keep the room clean
+                setTimeout(() => {
+                    message.delete().catch(() => null);
+                }, 1000);
                 return;
             }
         }

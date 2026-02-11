@@ -265,9 +265,11 @@ module.exports = {
                     
                     // Improved detection: Check if the user's username is in the channel name
                     // We use a more flexible check to avoid issues with symbols or prefixes
-                    const isOwner = voiceChannel.name.toLowerCase().includes(user.username.toLowerCase());
+                    // We also check if the user has ManageChannels permission in that specific channel
+                    const isOwnerByName = voiceChannel.name.toLowerCase().includes(user.username.toLowerCase());
+                    const hasManagePerms = voiceChannel.permissionsFor(user).has(PermissionFlagsBits.ManageChannels);
                     
-                    if (!voiceChannel.name.includes("'s Room") || !isOwner) {
+                    if (!voiceChannel.name.includes("'s Room") || (!isOwnerByName && !hasManagePerms)) {
                         return interaction.reply({ content: "❌ You can only control your own temporary voice channel!", flags: [MessageFlags.Ephemeral] });
                     }
                 }
