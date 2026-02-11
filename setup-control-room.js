@@ -22,26 +22,26 @@ client.once('ready', async () => {
         }
 
         const controlEmbed = new EmbedBuilder()
-            .setTitle(\'🔊 Supreme Voice Control Room\')
-            .setDescription(\'Use the buttons below to manage your temporary voice channel.\\n\\n\' +
-                \'**How it works:**\\n\' +
-                \'1. Join the **Join to Create** channel to get your own room.\\n\' +
-                \'2. Use these buttons while you are in **your own** room.\\n\\n\' +
-                \'**Controls:**\\n\' +
-                \'📝 **Rename**: Change your room name\\n\' +
-                \'👥 **Limit**: Set user limit (0-99)\\n\' +
-                \'🔒 **Lock**: Prevent others from joining\\n\' +
-                \'🔓 **Unlock**: Allow everyone to join\\n\' +
-                \'👻 **Hide**: Hide channel from everyone\\n\' +
-                \'👁️ **Show**: Make channel visible\\n\' +
-                \'✅ **Permit**: Allow specific user to join\\n\' +
-                \'❌ **Reject**: Block/Kick specific user\\n\' +
-                \'👞 **Kick**: Remove user from channel\\n\' +
-                \'🔇 **Mute**: Mute a user (via @mention)\\n\' +
-                \'🔊 **Unmute**: Unmute a user (via @mention)\\n\' +
-                \'👑 **Claim**: Claim an empty room\')
-            .setColor(\'#2F3136\')
-            .setFooter({ text: \'Supreme Voice Control • Persistent Room\' })
+            .setTitle('🔊 Supreme Voice Control Room')
+            .setDescription('Use the buttons below to manage your temporary voice channel.\n\n' +
+                '**How it works:**\n' +
+                '1. Join the **Join to Create** channel to get your own room.\n' +
+                '2. Use these buttons while you are in **your own** room.\n\n' +
+                '**Controls:**\n' +
+                '📝 **Rename**: Change your room name\n' +
+                '👥 **Limit**: Set user limit (0-99)\n' +
+                '🔒 **Lock**: Prevent others from joining\n' +
+                '🔓 **Unlock**: Allow everyone to join\n' +
+                '👻 **Hide**: Hide channel from everyone\n' +
+                '👁️ **Show**: Make channel visible\n' +
+                '✅ **Permit**: Allow specific user to join\n' +
+                '❌ **Reject**: Block/Kick specific user\n' +
+                '👞 **Kick**: Remove user from channel\n' +
+                '🔇 **Mute**: Mute a user (via @mention)\n' +
+                '🔊 **Unmute**: Unmute a user (via @mention)\n' +
+                '👑 **Claim**: Claim an empty room')
+            .setColor('#2F3136')
+            .setFooter({ text: 'Supreme Voice Control • Persistent Room' })
             .setTimestamp();
 
         const row1 = new ActionRowBuilder().addComponents(
