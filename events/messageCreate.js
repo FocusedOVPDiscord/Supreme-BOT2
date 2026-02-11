@@ -27,21 +27,37 @@ module.exports = {
                                 if (targetMember && targetMember.voice.channelId === voiceChannel.id) {
                                     await targetMember.voice.setMute(true);
                                 }
-                                await message.reply(`✅ <@${targetUser.id}> has been **muted** in your room.`);
+                                const reply = await message.reply(`✅ <@${targetUser.id}> has been **muted** in your room.`);
+                                setTimeout(() => {
+                                    message.delete().catch(() => null);
+                                    reply.delete().catch(() => null);
+                                }, 5000);
                             } else if (vcAction.action === 'unmute') {
                                 await voiceChannel.permissionOverwrites.edit(targetUser.id, { [PermissionFlagsBits.Speak]: true });
                                 const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
                                 if (targetMember && targetMember.voice.channelId === voiceChannel.id) {
                                     await targetMember.voice.setMute(false);
                                 }
-                                await message.reply(`✅ <@${targetUser.id}> has been **unmuted** in your room.`);
+                                const reply = await message.reply(`✅ <@${targetUser.id}> has been **unmuted** in your room.`);
+                                setTimeout(() => {
+                                    message.delete().catch(() => null);
+                                    reply.delete().catch(() => null);
+                                }, 5000);
                             }
                         } else {
-                            await message.reply("❌ Your voice channel no longer exists.");
+                            const reply = await message.reply("❌ Your voice channel no longer exists.");
+                            setTimeout(() => {
+                                message.delete().catch(() => null);
+                                reply.delete().catch(() => null);
+                            }, 5000);
                         }
                     } catch (err) {
                         console.error('[VOICE CONTROL] Error:', err);
-                        await message.reply("❌ An error occurred while processing the request.");
+                        const reply = await message.reply("❌ An error occurred while processing the request.");
+                        setTimeout(() => {
+                            message.delete().catch(() => null);
+                            reply.delete().catch(() => null);
+                        }, 5000);
                     } finally {
                         // Re-lock the channel for the owner
                         await channel.permissionOverwrites.edit(author.id, { [PermissionFlagsBits.SendMessages]: false });
@@ -54,7 +70,11 @@ module.exports = {
                     if (message.content.toLowerCase() === 'cancel') {
                         await channel.permissionOverwrites.edit(author.id, { [PermissionFlagsBits.SendMessages]: false });
                         await storage.delete(guild.id, `vc_action_${author.id}`);
-                        await message.reply("❌ Action cancelled. Channel re-locked.");
+                        const reply = await message.reply("❌ Action cancelled. Channel re-locked.");
+                        setTimeout(() => {
+                            message.delete().catch(() => null);
+                            reply.delete().catch(() => null);
+                        }, 5000);
                     }
                 }
                 return;
