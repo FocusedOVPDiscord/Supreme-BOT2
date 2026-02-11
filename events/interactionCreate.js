@@ -249,35 +249,25 @@ module.exports = {
             // --- VOICE CHANNEL CONTROL HANDLERS ---
             if (customId.startsWith('vc_')) {
                 const [prefix, action, idPart] = customId.split('_');
-                
-                // For persistent buttons, we check if the user is the owner of the room they are in
-                // For legacy buttons, we check the ownerId in the customId
-                const ownerId = idPart === 'persistent' ? user.id : idPart;
-                
-                // Only the owner can use these buttons, except for 'claim'
-                if (user.id !== ownerId && action !== 'claim') {
-                    return interaction.reply({ content: "❌ You are not the owner of this room!", flags: [MessageFlags.Ephemeral] });
-                }
-
                 const voiceChannel = member.voice.channel;
-                
-                // Validate user is in a voice channel (except for claim)
-                if (!voiceChannel) {
-                    if (action !== 'claim') {
-                        return interaction.reply({ content: "❌ You must be in a voice channel to use these controls!", flags: [MessageFlags.Ephemeral] });
+
+                // For 'claim', we handle it separately as the user might not be the owner yet
+                if (action === 'claim') {
+                    if (!voiceChannel || !voiceChannel.name.includes("'s Room")) {
+                        return interaction.reply({ content: "❌ You must be in a temporary voice channel to claim it!", flags: [MessageFlags.Ephemeral] });
                     }
-                }
-                
-                // Validate it's a temporary room (except for claim)
-                if (voiceChannel && !voiceChannel.name.includes("'s Room")) {
-                    if (action !== 'claim') {
-                        return interaction.reply({ content: "❌ This is not a temporary voice channel!", flags: [MessageFlags.Ephemeral] });
+                    if (voiceChannel.name.includes(user.username)) {
+                        return interaction.reply({ content: "❌ You already own this room!", flags: [MessageFlags.Ephemeral] });
                     }
-                }
-                
-                // Ensure the owner is controlling THEIR OWN room
-                if (voiceChannel && !voiceChannel.name.includes(user.username) && action !== 'claim') {
-                    return interaction.reply({ content: "❌ You can only control your own room!", flags: [MessageFlags.Ephemeral] });
+                    // Logic to claim if owner left (handled in switch)
+                } else {
+                    // For all other actions, user MUST be in their own room
+                    if (!voiceChannel) {
+                        return interaction.reply({ content: "❌ You must be in your voice channel to use these controls!", flags: [MessageFlags.Ephemeral] });
+                    }
+                    if (!voiceChannel.name.includes("'s Room") || !voiceChannel.name.includes(user.username)) {
+                        return interaction.reply({ content: "❌ You can only control your own temporary voice channel!", flags: [MessageFlags.Ephemeral] });
+                    }
                 }
                 
                 switch (action) {
