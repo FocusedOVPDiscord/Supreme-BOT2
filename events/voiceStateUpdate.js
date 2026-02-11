@@ -9,7 +9,8 @@ const {
 
 const JOIN_TO_CREATE_ID = '1470577500336685178';
 const CONTROL_CHANNEL_ID = '1470577900540661925';
-const activeVoiceChannels = new Map(); // ownerId -> channelId
+const activeVoiceChannels = new Map(); // ownerId -> { channelId, controlMessageId }
+const channelOwners = new Map(); // channelId -> ownerId
 
 module.exports = {
     name: 'voiceStateUpdate',
@@ -45,7 +46,12 @@ module.exports = {
 
                 // Move member to the new channel
                 await member.voice.setChannel(voiceChannel);
-                activeVoiceChannels.set(member.id, voiceChannel.id);
+                
+                // Track the channel and owner
+                activeVoiceChannels.set(member.id, { channelId: voiceChannel.id, controlMessageId: null });
+                channelOwners.set(voiceChannel.id, member.id);
+                
+                console.log(`[VOICE] Created voice channel for ${member.user.tag} (${voiceChannel.id})`);
 
                 // Send control panel in the control channel
                 const controlChannel = await guild.channels.fetch(CONTROL_CHANNEL_ID);
@@ -78,11 +84,20 @@ module.exports = {
                         new ButtonBuilder().setCustomId(`vc_claim_${member.id}`).setLabel('Claim').setEmoji('👑').setStyle(ButtonStyle.Primary)
                     );
 
-                    await controlChannel.send({
+                    const controlMessage = await controlChannel.send({
                         content: `<@${member.id}>`,
                         embeds: [controlEmbed],
                         components: [row1, row2, row3]
                     });
+                    
+                    // Store control message ID for cleanup
+                    const channelData = activeVoiceChannels.get(member.id);
+                    if (channelData) {
+                        channelData.controlMessageId = controlMessage.id;
+                        activeVoiceChannels.set(member.id, channelData);
+                    }
+                    
+                    console.log(`[VOICE] Sent control panel for ${member.user.tag} in ${controlChannel.name}`);
                 }
             } catch (error) {
                 console.error('Error creating voice channel:', error);
@@ -92,12 +107,41 @@ module.exports = {
         // User left a temporary voice channel
         if (oldState.channelId && oldState.channelId !== newState.channelId) {
             const channel = oldState.channel;
-            if (channel && channel.name.includes("'s Room") && channel.members.size === 0) {
+            
+            // Check if this is a tracked temporary voice channel
+            const ownerId = channelOwners.get(oldState.channelId);
+            
+            if (channel && ownerId && channel.members.size === 0) {
                 try {
+                    console.log(`[VOICE] Deleting empty voice channel ${channel.name} (${channel.id})`);
+                    
+                    // Delete the control panel message
+                    const channelData = activeVoiceChannels.get(ownerId);
+                    if (channelData && channelData.controlMessageId) {
+                        try {
+                            const controlChannel = await guild.channels.fetch(CONTROL_CHANNEL_ID);
+                            if (controlChannel) {
+                                const controlMessage = await controlChannel.messages.fetch(channelData.controlMessageId).catch(() => null);
+                                if (controlMessage) {
+                                    await controlMessage.delete();
+                                    console.log(`[VOICE] Deleted control panel message for ${ownerId}`);
+                                }
+                            }
+                        } catch (err) {
+                            console.warn(`[VOICE] Could not delete control message: ${err.message}`);
+                        }
+                    }
+                    
+                    // Delete the voice channel
                     await channel.delete();
-                    // Clean up map if needed (though we'd need to find the owner)
+                    
+                    // Clean up tracking maps
+                    activeVoiceChannels.delete(ownerId);
+                    channelOwners.delete(oldState.channelId);
+                    
+                    console.log(`[VOICE] Successfully cleaned up voice channel for ${ownerId}`);
                 } catch (error) {
-                    console.error('Error deleting voice channel:', error);
+                    console.error('[VOICE] Error deleting voice channel:', error);
                 }
             }
         }

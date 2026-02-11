@@ -252,19 +252,24 @@ module.exports = {
                 
                 // Only the owner can use these buttons, except for 'claim'
                 if (user.id !== ownerId && action !== 'claim') {
-                    return interaction.reply({ content: "You are not the owner of this room!", flags: [MessageFlags.Ephemeral] });
+                    return interaction.reply({ content: "❌ You are not the owner of this room!", flags: [MessageFlags.Ephemeral] });
                 }
 
                 const voiceChannel = member.voice.channel;
-                if (!voiceChannel || !voiceChannel.name.includes("'s Room")) {
-                    // For claim, we might not be in the channel yet, but usually we should be
+                
+                // Validate user is in a voice channel (except for claim)
+                if (!voiceChannel) {
                     if (action !== 'claim') {
-                        return interaction.reply({ content: "You must be in your voice channel to use these controls!", flags: [MessageFlags.Ephemeral] });
+                        return interaction.reply({ content: "❌ You must be in a voice channel to use these controls!", flags: [MessageFlags.Ephemeral] });
                     }
                 }
-
-                // Security: ensure the channel actually belongs to the ownerId (or is a room)
-                // For simplicity in this script, we check the name
+                
+                // Validate it's a temporary room (except for claim)
+                if (voiceChannel && !voiceChannel.name.includes("'s Room")) {
+                    if (action !== 'claim') {
+                        return interaction.reply({ content: "❌ This is not a temporary voice channel!", flags: [MessageFlags.Ephemeral] });
+                    }
+                }
                 
                 switch (action) {
                     case 'lock':

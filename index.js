@@ -134,7 +134,8 @@ const client = new Client({
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildModeration,
         GatewayIntentBits.GuildInvites,
-        GatewayIntentBits.DirectMessages
+        GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.GuildVoiceStates
     ],
     partials: [
         Partials.Channel,
@@ -394,11 +395,23 @@ app.get('/', (req, res) => {
     }
 });
 
+// Startup timestamp for grace period
+const startupTime = Date.now();
+const STARTUP_GRACE_PERIOD = 60000; // 60 seconds
+
 app.get('/health', (req, res) => {
     const isDiscordReady = client.isReady();
-    res.status(isDiscordReady ? 200 : 503).json({ 
-        status: isDiscordReady ? 'healthy' : 'degraded', 
+    const isInGracePeriod = (Date.now() - startupTime) < STARTUP_GRACE_PERIOD;
+    
+    // Return 200 OK during grace period or when Discord is ready
+    // This prevents Koyeb from restarting the service during startup
+    const statusCode = (isDiscordReady || isInGracePeriod) ? 200 : 503;
+    const status = isDiscordReady ? 'healthy' : (isInGracePeriod ? 'starting' : 'degraded');
+    
+    res.status(statusCode).json({ 
+        status: status,
         discord: isDiscordReady ? 'connected' : 'disconnected',
+        uptime: Math.floor(process.uptime()),
         timestamp: new Date().toISOString() 
     });
 });
