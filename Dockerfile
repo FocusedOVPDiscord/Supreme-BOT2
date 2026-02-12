@@ -29,5 +29,5 @@ ENV PORT=8000
 
 EXPOSE 8000
 
-# Start script that runs migration then the bot
-CMD ["sh", "-c", "node migrateToTiDB.js && node index.js"]
+# Start script that runs migrations then the bot
+CMD ["sh", "-c", "node migrateToTiDB.js && node fix_ai_memory.js && node index.js"]
