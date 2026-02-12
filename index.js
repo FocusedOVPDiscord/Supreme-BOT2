@@ -114,19 +114,9 @@ try {
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                 )
             `);
-            await query(`
-                CREATE TABLE IF NOT EXISTS ai_memory (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    guild_id VARCHAR(255) NOT NULL,
-                    user_id VARCHAR(255) NOT NULL,
-                    role VARCHAR(20) NOT NULL,
-                    content TEXT NOT NULL,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_guild_user (guild_id, user_id),
-                    INDEX idx_timestamp (timestamp)
-                )
-            `);
-            console.log('✅ [STARTUP] TiDB Schema ready (including AI tables).');
+            // Note: ai_memory table is created by fix_ai_memory.js migration script
+            // This ensures it's always created with the correct schema (VARCHAR not ENUM)
+            console.log('✅ [STARTUP] TiDB Schema ready (ai_memory handled by migration script).');
             
             // Run migration to add missing columns if table already existed
             await fixDatabase();
