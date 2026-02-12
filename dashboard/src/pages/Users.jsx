@@ -70,11 +70,11 @@ export default function Users() {
   );
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-700">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 md:space-y-8 animate-in fade-in duration-700">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-black text-white tracking-tight">User <span className="gradient-text">Management</span></h1>
-          <p className="text-slate-400 mt-1">Monitor community members and invite statistics ({pagination.total} total).</p>
+          <h1 className="text-2xl md:text-4xl font-black text-white tracking-tight">User <span className="gradient-text">Management</span></h1>
+          <p className="text-slate-400 mt-1 text-sm md:text-base">Monitor community members and invite statistics ({pagination.total} total).</p>
         </div>
         <div className="relative">
           <input 
@@ -96,8 +96,8 @@ export default function Users() {
         </div>
       )}
 
-      <div className="glass rounded-3xl overflow-hidden border border-white/5">
-        <div className="overflow-x-auto">
+      <div className="glass rounded-2xl md:rounded-3xl overflow-hidden border border-white/5">
+        <div className="overflow-x-auto responsive-table">
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-white/5 text-slate-400 text-xs font-bold uppercase tracking-wider">
@@ -181,7 +181,7 @@ export default function Users() {
         </div>
         
         {/* Pagination Controls */}
-        <div className="px-8 py-5 bg-white/5 border-t border-white/5 flex items-center justify-between">
+        <div className="px-4 md:px-8 py-4 md:py-5 bg-white/5 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-sm text-slate-500">
             Showing <span className="text-white font-bold">{Math.min((pagination.page - 1) * 40 + 1, pagination.total)} - {Math.min(pagination.page * 40, pagination.total)}</span> of <span className="text-white font-bold">{pagination.total}</span> members
           </p>

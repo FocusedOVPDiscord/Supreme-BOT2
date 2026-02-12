@@ -67,11 +67,11 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-700">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 md:space-y-8 animate-in fade-in duration-700">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-black text-white tracking-tight">System <span className="gradient-text">Overview</span></h1>
-          <p className="text-slate-400 mt-1">Real-time performance and community metrics for <strong>{stats?.serverName}</strong>.</p>
+          <h1 className="text-2xl md:text-4xl font-black text-white tracking-tight">System <span className="gradient-text">Overview</span></h1>
+          <p className="text-slate-400 mt-1 text-sm md:text-base">Real-time performance and community metrics for <strong>{stats?.serverName}</strong>.</p>
         </div>
         <div className="flex items-center gap-3 bg-slate-800/50 p-1.5 rounded-2xl border border-white/5">
           <div className="px-4 py-2 rounded-xl bg-indigo-600/10 text-indigo-400 text-sm font-bold border border-indigo-500/20">
@@ -85,7 +85,7 @@ export default function Dashboard() {
       </header>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <StatCard
           title="Total Members"
           value={stats?.totalMembers?.toLocaleString() || 0}
@@ -120,9 +120,9 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-8">
         {/* Server Info */}
-        <div className="lg:col-span-1 glass rounded-3xl p-8 space-y-6">
+        <div className="lg:col-span-1 glass rounded-2xl md:rounded-3xl p-5 md:p-8 space-y-6">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             Server Details
@@ -144,7 +144,7 @@ export default function Dashboard() {
         </div>
 
         {/* Recent Activity Placeholder */}
-        <div className="lg:col-span-2 glass rounded-3xl p-8">
+        <div className="lg:col-span-2 glass rounded-2xl md:rounded-3xl p-5 md:p-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
               <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>

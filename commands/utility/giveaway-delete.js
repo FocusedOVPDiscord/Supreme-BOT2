@@ -1,12 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const storage = require('./storage.js');
 
-/**
- * SUPREME GIVEAWAY DELETE COMMAND
- * - Deletes a running giveaway by message ID
- * - Restricted to Administrators
- */
-
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('giveaway-delete')
@@ -20,18 +14,16 @@ module.exports = {
         const messageId = interaction.options.getString('message_id');
         const giveawayId = `giveaway_${messageId}`;
         
-        // Check if giveaway exists in storage
         const participants = storage.get(interaction.guild.id, giveawayId);
         
-        if (!participants) {
+        if (participants === undefined || participants === null) {
             return interaction.reply({
-                content: `\u274C No active giveaway found with Message ID: \`${messageId}\``,
+                content: `❌ No active giveaway found with Message ID: \`${messageId}\``,
                 ephemeral: true
             });
         }
 
         try {
-            // Try to find and delete the message
             const channel = interaction.channel;
             const message = await channel.messages.fetch(messageId).catch(() => null);
             
@@ -39,20 +31,25 @@ module.exports = {
                 await message.delete();
             }
 
-            // Remove from storage
+            // Remove participants from storage
             storage.set(interaction.guild.id, giveawayId, undefined);
             
-            // Also remove the metadata if it exists
+            // Remove the metadata
             storage.set(interaction.guild.id, `giveaway_meta_${messageId}`, undefined);
 
+            // Remove from all_giveaways tracking array
+            const allGiveaways = storage.get(interaction.guild.id, 'all_giveaways') || [];
+            const filtered = allGiveaways.filter(id => id !== messageId);
+            await storage.set(interaction.guild.id, 'all_giveaways', filtered);
+
             return interaction.reply({
-                content: `\u2705 Successfully deleted giveaway \`${messageId}\` and removed its data.`,
+                content: `✅ Successfully deleted giveaway \`${messageId}\` and removed its data.`,
                 ephemeral: true
             });
         } catch (error) {
             console.error('Error deleting giveaway:', error);
             return interaction.reply({
-                content: `\u274C Failed to delete giveaway. Error: ${error.message}`,
+                content: `❌ Failed to delete giveaway. Error: ${error.message}`,
                 ephemeral: true
             });
         }

@@ -75,11 +75,11 @@ export default function Login({ setIsAuthenticated, setUser }) {
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl gradient-bg shadow-2xl shadow-indigo-500/40 mb-6">
             <span className="text-4xl font-black text-white">S</span>
           </div>
-          <h1 className="text-4xl font-black text-white tracking-tight mb-2">Supreme <span className="gradient-text">Bot</span></h1>
+          <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight mb-2">Supreme <span className="gradient-text">Bot</span></h1>
           <p className="text-slate-400 font-medium">Management Dashboard v2.4</p>
         </div>
 
-        <div className="glass rounded-[2.5rem] p-10 shadow-2xl border border-white/10">
+        <div className="glass rounded-2xl md:rounded-[2.5rem] p-6 md:p-10 shadow-2xl border border-white/10">
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-white mb-2">Welcome Back</h2>
             <p className="text-slate-400 text-sm">Please sign in with your Discord account to access the staff panel.</p>

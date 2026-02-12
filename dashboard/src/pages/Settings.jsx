@@ -69,10 +69,10 @@ export default function Settings() {
   if (loading) return <div className="p-8 text-white">Loading settings...</div>;
 
   return (
-    <div className="p-8 max-w-4xl mx-auto space-y-8 animate-in fade-in duration-700">
+    <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-6 md:space-y-8 animate-in fade-in duration-700">
       <header>
-        <h1 className="text-4xl font-black text-white tracking-tight">Bot <span className="gradient-text">Settings</span></h1>
-        <p className="text-slate-400 mt-1">Configure core bot functionality and automation.</p>
+        <h1 className="text-2xl md:text-4xl font-black text-white tracking-tight">Bot <span className="gradient-text">Settings</span></h1>
+        <p className="text-slate-400 mt-1 text-sm md:text-base">Configure core bot functionality and automation.</p>
       </header>
 
       {message.text && (
@@ -84,13 +84,13 @@ export default function Settings() {
       )}
 
       <div className="space-y-6">
-        <section className="glass rounded-3xl p-8 border border-white/5 space-y-6">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+        <section className="glass rounded-2xl md:rounded-3xl p-5 md:p-8 border border-white/5 space-y-6">
+          <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
             <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
             Automation
           </h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
             <div className="space-y-2">
               <label className="text-sm font-bold text-slate-400 uppercase tracking-wider">Auto-Role</label>
               <select 
@@ -122,8 +122,8 @@ export default function Settings() {
           </div>
         </section>
 
-        <section className="glass rounded-3xl p-8 border border-white/5 space-y-6">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+        <section className="glass rounded-2xl md:rounded-3xl p-5 md:p-8 border border-white/5 space-y-6">
+          <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
             <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4v-3a2 2 0 00-2-2H5z" /></svg>
             Ticket System
           </h2>

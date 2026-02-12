@@ -2,20 +2,17 @@ import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import ServerSelector from './ServerSelector';
 
-export default function Sidebar({ user, setIsAuthenticated }) {
+export default function Sidebar({ user, setIsAuthenticated, onClose }) {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(true);
   const [selectedGuild, setSelectedGuild] = useState(() => {
-    // Try to restore selected guild from localStorage on initial load
     const saved = localStorage.getItem('selectedGuild');
     return saved ? JSON.parse(saved) : null;
   });
 
   const handleGuildChange = (guild) => {
     setSelectedGuild(guild);
-    // Persist to localStorage so it survives the reload
     localStorage.setItem('selectedGuild', JSON.stringify(guild));
-    // When the user manually selects a guild, we reload the page to refresh all data
     window.location.reload();
   };
 
@@ -25,18 +22,16 @@ export default function Sidebar({ user, setIsAuthenticated }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ removeTrustedIP: true }) // Ensure full logout
+        body: JSON.stringify({ removeTrustedIP: true })
       });
       
       if (response.ok) {
-        localStorage.removeItem('selectedGuild'); // Clear saved guild on logout
+        localStorage.removeItem('selectedGuild');
         setIsAuthenticated(false);
-        // Force redirect to login
         window.location.href = '/dashboard/login';
       }
     } catch (error) {
       console.error('Logout failed:', error);
-      // Fallback: still try to update UI
       setIsAuthenticated(false);
     }
   };
@@ -68,23 +63,35 @@ export default function Sidebar({ user, setIsAuthenticated }) {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <div className={`${isOpen ? 'w-72' : 'w-20'} bg-slate-900/50 backdrop-blur-xl border-r border-white/10 text-white transition-all duration-500 flex flex-col z-50`}>
+    <div className={`${isOpen ? 'w-72' : 'w-20'} h-full bg-slate-900/50 backdrop-blur-xl border-r border-white/10 text-white transition-all duration-500 flex flex-col`}>
       {/* Header */}
-      <div className="p-6 flex items-center justify-between border-b border-white/5">
+      <div className="p-4 lg:p-6 flex items-center justify-between border-b border-white/5">
         {isOpen && (
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center font-bold text-lg shadow-lg shadow-indigo-500/20">S</div>
             <h1 className="text-xl font-bold tracking-tight">Supreme <span className="text-indigo-400">Bot</span></h1>
           </div>
         )}
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="p-2 hover:bg-white/5 rounded-xl transition-colors"
-        >
-          <svg className={`w-6 h-6 text-slate-400 transition-transform duration-500 ${!isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-1">
+          {/* Close button for mobile */}
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-white/5 rounded-xl transition-colors lg:hidden"
+          >
+            <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          {/* Collapse button for desktop */}
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="p-2 hover:bg-white/5 rounded-xl transition-colors hidden lg:block"
+          >
+            <svg className={`w-6 h-6 text-slate-400 transition-transform duration-500 ${!isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Server Selector */}
@@ -96,12 +103,13 @@ export default function Sidebar({ user, setIsAuthenticated }) {
       )}
 
       {/* Navigation */}
-      <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
+      <nav className="flex-1 px-3 lg:px-4 py-4 space-y-1.5 overflow-y-auto">
         {menuItems.map((item) => (
           <Link
             key={item.path}
             to={item.path}
-            className={`flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-300 group ${
+            onClick={onClose}
+            className={`flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 group ${
               isActive(item.path)
                 ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 shadow-lg shadow-indigo-500/10'
                 : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'

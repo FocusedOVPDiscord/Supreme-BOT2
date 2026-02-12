@@ -69,11 +69,24 @@ module.exports = {
         try {
             const giveawayMsg = await channel.send({ embeds: [embed], components: [row] });
             
-            // IMPORTANT: Initialize storage immediately so management commands can find it
+            // Initialize storage immediately so management commands can find it
             const giveawayId = `giveaway_${giveawayMsg.id}`;
             await storage.set(interaction.guild.id, giveawayId, []);
 
-            // Track active giveaways for /giveaway-list
+            // Store giveaway metadata for dashboard and persistence
+            await storage.set(interaction.guild.id, `giveaway_meta_${giveawayMsg.id}`, {
+                messageId: giveawayMsg.id,
+                channelId: channel.id,
+                prize: prize,
+                winnersCount: winnersCount,
+                hostId: interaction.user.id,
+                hostTag: interaction.user.username,
+                endTime: endTime,
+                createdAt: Date.now(),
+                status: 'active'
+            });
+
+            // Track active giveaways for /giveaway-list and dashboard
             const allGiveaways = storage.get(interaction.guild.id, 'all_giveaways') || [];
             if (!allGiveaways.includes(giveawayMsg.id)) {
                 allGiveaways.push(giveawayMsg.id);
@@ -85,7 +98,6 @@ module.exports = {
             // Schedule the giveaway end
             setTimeout(async () => {
                 try {
-                    const giveawayId = `giveaway_${giveawayMsg.id}`;
                     const participants = storage.get(interaction.guild.id, giveawayId) || [];
                     
                     let winners = [];
@@ -114,6 +126,15 @@ module.exports = {
                         await channel.send(`Congratulations ${winnersText}! You won the **${prize}**!`);
                     } else {
                         await channel.send(`The giveaway for **${prize}** has ended, but no one participated.`);
+                    }
+
+                    // Update metadata to ended
+                    const meta = storage.get(interaction.guild.id, `giveaway_meta_${giveawayMsg.id}`);
+                    if (meta) {
+                        meta.status = 'ended';
+                        meta.winners = winners;
+                        meta.participantCount = participants.length;
+                        await storage.set(interaction.guild.id, `giveaway_meta_${giveawayMsg.id}`, meta);
                     }
                 } catch (e) {
                     console.error('Error ending giveaway:', e);

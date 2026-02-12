@@ -1,12 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const storage = require('./storage.js');
 
-/**
- * SUPREME GIVEAWAY END COMMAND
- * - Ends a running giveaway immediately
- * - Restricted to Administrators
- */
-
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('giveaway-end')
@@ -23,7 +17,7 @@ module.exports = {
         const participants = storage.get(interaction.guild.id, giveawayId);
         if (!participants) {
             return interaction.reply({
-                content: `\u274C No active giveaway found with Message ID: \`${messageId}\``,
+                content: `❌ No active giveaway found with Message ID: \`${messageId}\``,
                 ephemeral: true
             });
         }
@@ -32,29 +26,24 @@ module.exports = {
             const message = await interaction.channel.messages.fetch(messageId).catch(() => null);
             if (!message) {
                 return interaction.reply({
-                    content: `\u274C Could not find the giveaway message in this channel.`,
+                    content: `❌ Could not find the giveaway message in this channel.`,
                     ephemeral: true
                 });
             }
 
-            // Check if it's already ended (no buttons)
             if (message.components.length === 0) {
                 return interaction.reply({
-                    content: `\u274C This giveaway has already ended.`,
+                    content: `❌ This giveaway has already ended.`,
                     ephemeral: true
                 });
             }
 
-            // We can't easily trigger the timeout from giveaway-create.js, 
-            // so we manually trigger the end logic here.
-            
             const embed = message.embeds[0];
             const prize = embed.title;
             const winnersCountMatch = embed.description.match(/Winners: \*\*(\d+)\*\*/);
             const winnersCount = winnersCountMatch ? parseInt(winnersCountMatch[1]) : 1;
             const hostMention = embed.description.match(/Hosted by (.*)/)?.[1] || interaction.user.toString();
 
-            // Select Winners
             const winners = [];
             if (participants.length > 0) {
                 const shuffled = [...participants].sort(() => 0.5 - Math.random());
@@ -85,23 +74,32 @@ module.exports = {
 
             if (winners.length > 0) {
                 await interaction.channel.send({
-                    content: `\u{1F389} Congratulations ${winnerMentions}! You won the **${prize}**!`
+                    content: `🎉 Congratulations ${winnerMentions}! You won the **${prize}**!`
                 });
             } else {
                 await interaction.channel.send({
-                    content: `\u274C The giveaway for **${prize}** ended with no participants.`
+                    content: `❌ The giveaway for **${prize}** ended with no participants.`
                 });
             }
 
+            // Update metadata to ended
+            const meta = storage.get(interaction.guild.id, `giveaway_meta_${messageId}`);
+            if (meta) {
+                meta.status = 'ended';
+                meta.winners = winners;
+                meta.participantCount = participants.length;
+                await storage.set(interaction.guild.id, `giveaway_meta_${messageId}`, meta);
+            }
+
             return interaction.reply({
-                content: `\u2705 Giveaway \`${messageId}\` has been ended.`,
+                content: `✅ Giveaway \`${messageId}\` has been ended.`,
                 ephemeral: true
             });
 
         } catch (error) {
             console.error('Error ending giveaway:', error);
             return interaction.reply({
-                content: `\u274C Failed to end giveaway. Error: ${error.message}`,
+                content: `❌ Failed to end giveaway. Error: ${error.message}`,
                 ephemeral: true
             });
         }
