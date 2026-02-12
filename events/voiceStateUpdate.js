@@ -52,10 +52,6 @@ module.exports = {
                 activeVoiceChannels.set(member.id, { channelId: voiceChannel.id, controlMessageId: null });
                 channelOwners.set(voiceChannel.id, member.id);
                 
-                // Also store owner ID in channel topic/metadata if possible (for persistence)
-                // Since voice channels don't have topics, we rely on the map and the name
-                // But we'll make the name check more robust in interactionCreate.js
-                
                 console.log(`[VOICE] Created voice channel for ${member.user.tag} (${voiceChannel.id})`);
 
                 // Control panel is now persistent, no need to send per channel
@@ -70,7 +66,8 @@ module.exports = {
         // to ensure we catch all empty channel scenarios
         const checkChannel = oldState.channel || newState.channel;
         
-        if (checkChannel && checkChannel.name.includes("'s Room")) {
+        // Check if this is a tracked temporary voice channel (instead of relying on name pattern)
+        if (checkChannel && channelOwners.has(checkChannel.id)) {
             // Re-fetch the channel to get the most up-to-date member count
             const channel = await guild.channels.fetch(checkChannel.id).catch(() => null);
             
@@ -97,5 +94,9 @@ module.exports = {
                 }
             }
         }
-    }
+    },
+    
+    // Export the maps so other modules can access them
+    getChannelOwners: () => channelOwners,
+    getActiveVoiceChannels: () => activeVoiceChannels
 };

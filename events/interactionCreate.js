@@ -1,5 +1,6 @@
 const { Events, EmbedBuilder, ChannelType, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, AttachmentBuilder } = require('discord.js');
 const storage = require('../commands/utility/storage.js');
+const voiceStateModule = require('./voiceStateUpdate.js');
 const appManager = require('../applicationManager.js');
 const { generateAndSendTranscript } = require('../utils/transcriptGenerator.js');
 const fs = require('fs');
@@ -59,13 +60,31 @@ module.exports = {
             // --- VOICE CONTROL MODAL HANDLERS ---
             if (customId.startsWith('vc_')) {
                 const voiceChannel = member.voice.channel;
-                if (!voiceChannel || !voiceChannel.name.includes("'s Room")) {
+                const channelOwners = voiceStateModule.getChannelOwners();
+                
+                // Check if user is in a tracked temporary voice channel and is the owner
+                if (!voiceChannel || !channelOwners.has(voiceChannel.id) || channelOwners.get(voiceChannel.id) !== user.id) {
                     return interaction.reply({ content: "You must be in your voice channel!", flags: [MessageFlags.Ephemeral] });
                 }
 
                 if (customId.startsWith('vc_rename_modal_')) {
                     const newName = interaction.fields.getTextInputValue('new_name');
+                    
+                    // Rename the channel
                     await voiceChannel.setName(`🔊 ${newName}`);
+                    
+                    // Re-apply owner permissions to ensure they persist after rename
+                    await voiceChannel.permissionOverwrites.edit(member.id, {
+                        [PermissionFlagsBits.Connect]: true,
+                        [PermissionFlagsBits.Speak]: true,
+                        [PermissionFlagsBits.Stream]: true,
+                        [PermissionFlagsBits.MuteMembers]: true,
+                        [PermissionFlagsBits.DeafenMembers]: true,
+                        [PermissionFlagsBits.MoveMembers]: true,
+                        [PermissionFlagsBits.ManageChannels]: true
+                    });
+                    
+                    console.log(`[VOICE] Channel renamed to "${newName}" by ${member.user.tag}, owner permissions preserved`);
                     return interaction.reply({ content: `✅ Room renamed to **${newName}**`, flags: [MessageFlags.Ephemeral] });
                 }
 
@@ -251,9 +270,12 @@ module.exports = {
                 const [prefix, action, idPart] = customId.split('_');
                 const voiceChannel = member.voice.channel;
 
+                // Get the channelOwners Map from voiceStateUpdate module
+                const channelOwners = voiceStateModule.getChannelOwners();
+                
                 // For 'claim', we handle it separately as the user might not be the owner yet
                 if (action === 'claim') {
-                    if (!voiceChannel || !voiceChannel.name.includes("'s Room")) {
+                    if (!voiceChannel || !channelOwners.has(voiceChannel.id)) {
                         return interaction.reply({ content: "❌ You must be in a temporary voice channel to claim it!", flags: [MessageFlags.Ephemeral] });
                     }
                     // Logic to claim if owner left (handled in switch)
@@ -263,13 +285,10 @@ module.exports = {
                         return interaction.reply({ content: "❌ You must be in your voice channel to use these controls!", flags: [MessageFlags.Ephemeral] });
                     }
                     
-                    // Improved detection: Check if the user's username is in the channel name
-                    // We use a more flexible check to avoid issues with symbols or prefixes
-                    // We also check if the user has ManageChannels permission in that specific channel
-                    const isOwnerByName = voiceChannel.name.toLowerCase().includes(user.username.toLowerCase());
-                    const hasManagePerms = voiceChannel.permissionsFor(user).has(PermissionFlagsBits.ManageChannels);
+                    // Check if this is a tracked temporary voice channel and if the user is the owner
+                    const ownerId = channelOwners.get(voiceChannel.id);
                     
-                    if (!voiceChannel.name.includes("'s Room") || (!isOwnerByName && !hasManagePerms)) {
+                    if (!ownerId || ownerId !== user.id) {
                         return interaction.reply({ content: "❌ You can only control your own temporary voice channel!", flags: [MessageFlags.Ephemeral] });
                     }
                 }
@@ -354,10 +373,10 @@ module.exports = {
                         return;
 
                     case 'claim':
-                        if (voiceChannel && voiceChannel.name.includes("'s Room")) {
+                        if (voiceChannel && channelOwners.has(voiceChannel.id)) {
                             // Check if the current owner is still in the channel
-                            const ownerNamePart = voiceChannel.name.split("'s")[0].replace('🔊 ', '').toLowerCase();
-                            const isCurrentOwnerInChannel = voiceChannel.members.some(m => m.user.username.toLowerCase() === ownerNamePart);
+                            const currentOwnerId = channelOwners.get(voiceChannel.id);
+                            const isCurrentOwnerInChannel = voiceChannel.members.has(currentOwnerId);
                             
                             if (isCurrentOwnerInChannel) {
                                 return interaction.reply({ content: "❌ The owner is still in this room! You cannot claim it.", flags: [MessageFlags.Ephemeral] });
@@ -377,6 +396,14 @@ module.exports = {
                                     [PermissionFlagsBits.MoveMembers]: true,
                                     [PermissionFlagsBits.ManageChannels]: true
                                 });
+                                
+                                // Update ownership tracking
+                                const activeVoiceChannels = voiceStateModule.getActiveVoiceChannels();
+                                activeVoiceChannels.delete(currentOwnerId);
+                                activeVoiceChannels.set(user.id, { channelId: voiceChannel.id, controlMessageId: null });
+                                channelOwners.set(voiceChannel.id, user.id);
+                                
+                                console.log(`[VOICE] Channel ${voiceChannel.id} claimed by ${user.tag}, ownership transferred`);
 
                                 return interaction.reply({ content: `👑 You have successfully claimed this room! It is now **${user.username}'s Room**.`, flags: [MessageFlags.Ephemeral] });
                             } catch (err) {
