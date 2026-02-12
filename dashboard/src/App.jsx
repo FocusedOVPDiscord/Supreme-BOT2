@@ -8,6 +8,7 @@ import Giveaways from './pages/Giveaways';
 import Settings from './pages/Settings';
 import AuditLogs from './pages/AuditLogs';
 import Transcripts from './pages/Transcripts';
+import AI from './pages/AI';
 import Sidebar from './components/Sidebar';
 import './App.css';
 
@@ -105,6 +106,7 @@ function App() {
             <Route path="/dashboard/settings" element={<Settings />} />
             <Route path="/dashboard/audit-logs" element={<AuditLogs />} />
             <Route path="/dashboard/transcripts" element={<Transcripts />} />
+            <Route path="/dashboard/ai" element={<AI />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </main>

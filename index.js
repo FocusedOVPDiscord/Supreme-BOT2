@@ -106,7 +106,27 @@ try {
                     answers JSON
                 )
             `);
-            console.log('✅ [STARTUP] TiDB Schema ready.');
+            await query(`
+                CREATE TABLE IF NOT EXISTS ai_config (
+                    guild_id VARCHAR(255) PRIMARY KEY,
+                    enabled TINYINT(1) DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )
+            `);
+            await query(`
+                CREATE TABLE IF NOT EXISTS ai_memory (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    guild_id VARCHAR(255) NOT NULL,
+                    user_id VARCHAR(255) NOT NULL,
+                    role ENUM('user', 'assistant', 'system') NOT NULL,
+                    content TEXT NOT NULL,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_guild_user (guild_id, user_id),
+                    INDEX idx_timestamp (timestamp)
+                )
+            `);
+            console.log('✅ [STARTUP] TiDB Schema ready (including AI tables).');
             
             // Run migration to add missing columns if table already existed
             await fixDatabase();
@@ -429,6 +449,10 @@ app.locals.client = client;
 
 // Dashboard API routes
 app.use('/api/dashboard', dashboardApi);
+
+// AI API routes
+const aiApi = require('./routes/aiApi');
+app.use('/api/ai', aiApi);
 
 // Serve static files for the React dashboard
 const dashboardDistPath = path.join(__dirname, 'dashboard', 'dist');
