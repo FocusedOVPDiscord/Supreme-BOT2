@@ -1,5 +1,9 @@
-const puter = require('@heyputer/puter.js');
+const { init } = require('@heyputer/puter.js/src/init.cjs');
 const { query } = require('./db');
+
+// Initialize Puter.js for Node.js
+// Note: Puter.js is free and doesn't require auth token for basic AI usage
+const puter = init();
 
 class AIService {
   constructor() {
@@ -59,9 +63,10 @@ KNOWLEDGE & ANSWERING RULES:
    */
   async getHistory(guildId, userId, limit = 10) {
     try {
+      // TiDB doesn't support LIMIT with parameter binding, use hardcoded value
       const results = await query(
-        'SELECT role, content, timestamp FROM ai_memory WHERE guild_id = ? AND user_id = ? ORDER BY timestamp DESC LIMIT ?',
-        [guildId, userId, limit]
+        `SELECT role, content, timestamp FROM ai_memory WHERE guild_id = ? AND user_id = ? ORDER BY timestamp DESC LIMIT ${parseInt(limit)}`,
+        [guildId, userId]
       );
       return results.reverse().map(r => ({ role: r.role, content: r.content }));
     } catch (error) {
@@ -119,34 +124,30 @@ KNOWLEDGE & ANSWERING RULES:
       // Get conversation history
       const history = await this.getHistory(guildId, userId, 5);
 
-      // Build messages array
-      const messages = [
-        { role: 'system', content: this.systemPrompt }
-      ];
+      // Build conversation string for Puter.js
+      let conversationText = this.systemPrompt + '\n\n';
 
       // Add channel context if provided
       if (channelContext) {
-        messages.push({
-          role: 'system',
-          content: `Context: This is a support ticket. Channel: ${channelContext.channelName || 'ticket'}`
-        });
+        conversationText += `Context: This is a support ticket. Channel: ${channelContext.channelName || 'ticket'}\n\n`;
       }
 
       // Add history
-      messages.push(...history);
+      if (history.length > 0) {
+        conversationText += 'Previous conversation:\n';
+        history.forEach(msg => {
+          conversationText += `${msg.role}: ${msg.content}\n`;
+        });
+        conversationText += '\n';
+      }
 
       // Add current message
-      messages.push({ role: 'user', content: userMessage });
+      conversationText += `user: ${userMessage}\n\nassistant:`;
 
-      // Call Puter AI
-      const response = await puter.ai.chat(
-        messages.map(m => `${m.role}: ${m.content}`).join('\n\n'),
-        {
-          model: 'gpt-4.1',
-          temperature: 0.7,
-          max_tokens: 500
-        }
-      );
+      // Call Puter AI with simple string format
+      const response = await puter.ai.chat(conversationText, {
+        model: 'gpt-4.1'
+      });
 
       // Save to memory
       await this.saveToMemory(guildId, userId, 'user', userMessage);

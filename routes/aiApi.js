@@ -93,9 +93,10 @@ router.get('/memory', requireAuth, async (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
     const { query } = require('../utils/db');
     
+    // TiDB doesn't support LIMIT with parameter binding
     const results = await query(
-      'SELECT ai_memory.*, users.username FROM ai_memory LEFT JOIN (SELECT DISTINCT user_id, MAX(timestamp) as last_seen FROM ai_memory GROUP BY user_id) as users ON ai_memory.user_id = users.user_id WHERE ai_memory.guild_id = ? ORDER BY ai_memory.timestamp DESC LIMIT ?',
-      [guild.id, limit]
+      `SELECT ai_memory.*, users.username FROM ai_memory LEFT JOIN (SELECT DISTINCT user_id, MAX(timestamp) as last_seen FROM ai_memory GROUP BY user_id) as users ON ai_memory.user_id = users.user_id WHERE ai_memory.guild_id = ? ORDER BY ai_memory.timestamp DESC LIMIT ${limit}`,
+      [guild.id]
     );
 
     // Format results
