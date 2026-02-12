@@ -106,17 +106,9 @@ try {
                     answers JSON
                 )
             `);
-            await query(`
-                CREATE TABLE IF NOT EXISTS ai_config (
-                    guild_id VARCHAR(255) PRIMARY KEY,
-                    enabled TINYINT(1) DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                )
-            `);
-            // Note: ai_memory table is created by fix_ai_memory.js migration script
-            // This ensures it's always created with the correct schema (VARCHAR not ENUM)
-            console.log('✅ [STARTUP] TiDB Schema ready (ai_memory handled by migration script).');
+            // Note: ai_config and ai_memory tables are created by migrateToTiDB.js
+            // This ensures correct schema (VARCHAR not ENUM for TiDB compatibility)
+            console.log('✅ [STARTUP] TiDB Schema ready (AI tables handled by migration).');
             
             // Run migration to add missing columns if table already existed
             await fixDatabase();

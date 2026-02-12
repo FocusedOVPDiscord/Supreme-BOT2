@@ -64,7 +64,37 @@ async function initSchema() {
         )
     `);
 
-    console.log('✅ Schema initialized.');
+    // AI Memory table - MUST use VARCHAR not ENUM (TiDB doesn't support ENUM)
+    // Force drop and recreate to fix any existing broken schema
+    try {
+        await query('DROP TABLE IF EXISTS ai_memory');
+        console.log('🔧 Dropped old ai_memory table (if existed)');
+    } catch (err) {
+        console.log('⚠️ ai_memory drop skipped:', err.message);
+    }
+    await query(`
+        CREATE TABLE IF NOT EXISTS ai_memory (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            guild_id VARCHAR(255) NOT NULL,
+            user_id VARCHAR(255) NOT NULL,
+            role VARCHAR(20) NOT NULL,
+            content TEXT NOT NULL,
+            created_at BIGINT,
+            INDEX idx_guild_user (guild_id, user_id)
+        )
+    `);
+
+    // AI Config table
+    await query(`
+        CREATE TABLE IF NOT EXISTS ai_config (
+            guild_id VARCHAR(255) PRIMARY KEY,
+            enabled TINYINT(1) DEFAULT 0,
+            created_at BIGINT,
+            updated_at BIGINT
+        )
+    `);
+
+    console.log('✅ Schema initialized (including AI tables).');
 }
 
 async function migrateData() {

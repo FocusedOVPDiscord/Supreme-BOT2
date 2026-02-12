@@ -93,19 +93,17 @@ router.get('/memory', requireAuth, async (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
     const { query } = require('../utils/db');
     
-    // TiDB doesn't support LIMIT with parameter binding
     const results = await query(
-      `SELECT id, guild_id, user_id, role, content, timestamp FROM ai_memory WHERE guild_id = ? ORDER BY timestamp DESC LIMIT ${limit}`,
+      `SELECT id, guild_id, user_id, role, content, created_at FROM ai_memory WHERE guild_id = ? ORDER BY created_at DESC LIMIT ${limit}`,
       [guild.id]
     );
 
-    // Format results
     const memory = results.map(entry => ({
       id: entry.id,
       userId: entry.user_id,
       role: entry.role,
       content: entry.content,
-      timestamp: entry.timestamp
+      timestamp: entry.created_at
     }));
 
     res.json(memory);
@@ -169,11 +167,10 @@ router.get('/users', requireAuth, async (req, res) => {
     const { query } = require('../utils/db');
     
     const results = await query(
-      'SELECT user_id, COUNT(*) as message_count, MAX(timestamp) as last_interaction FROM ai_memory WHERE guild_id = ? GROUP BY user_id ORDER BY last_interaction DESC',
+      'SELECT user_id, COUNT(*) as message_count, MAX(created_at) as last_interaction FROM ai_memory WHERE guild_id = ? GROUP BY user_id ORDER BY last_interaction DESC',
       [guild.id]
     );
 
-    // Fetch Discord user info
     const users = await Promise.all(results.map(async (row) => {
       try {
         const member = await guild.members.fetch(row.user_id).catch(() => null);

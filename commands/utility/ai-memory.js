@@ -82,7 +82,7 @@ module.exports = {
 
           recentMemory.forEach((entry, index) => {
             const roleEmoji = entry.role === 'user' ? '👤' : '🤖';
-            const timestamp = new Date(entry.timestamp).toLocaleString();
+            const timestamp = new Date(entry.created_at).toLocaleString();
             const content = entry.content.length > 100 
               ? entry.content.substring(0, 100) + '...' 
               : entry.content;
