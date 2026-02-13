@@ -38,6 +38,11 @@ if (!TOKEN) {
     console.error('❌ [ERROR] TOKEN or DISCORD_TOKEN environment variable is missing');
     process.exit(1);
 }
+console.log('🔑 [TOKEN] Token loaded, length:', TOKEN.length, 'chars');
+if (TOKEN.length < 50) {
+    console.error('❌ [ERROR] Token is too short - likely invalid or truncated');
+    process.exit(1);
+}
 
 /* ===============================
    INITIALIZE DATA
@@ -382,10 +387,18 @@ client.on(Events.InviteDelete, invite => {
 /* ===============================
    LOGIN
 ================================ */
-client.login(TOKEN).catch(err => {
-    console.error('❌ [FATAL] Discord login failed:', err);
-    process.exit(1);
-});
+console.log('🔑 [LOGIN] Attempting to login to Discord...');
+client.login(TOKEN)
+    .then(() => {
+        console.log('✅ [LOGIN] Successfully authenticated with Discord');
+    })
+    .catch(err => {
+        console.error('❌ [FATAL] Discord login failed:', err.message);
+        console.error('🔍 [DEBUG] Token starts with:', TOKEN.substring(0, 20) + '...');
+        console.error('🔍 [DEBUG] Token ends with:', '...' + TOKEN.substring(TOKEN.length - 10));
+        console.error('🔍 [DEBUG] Full error:', err);
+        process.exit(1);
+    });
 
 /* ===============================
    EXPRESS SERVER & KEEP-ALIVE
