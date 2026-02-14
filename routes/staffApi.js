@@ -1,7 +1,16 @@
 const express = require('express');
 const router = express.Router();
 
-// Get staff verification data
+// Specific role IDs to include in verification
+const STAFF_ROLE_IDS = [
+    '1354402446994309123', // Founder
+    '1410661468688482314', // Moderator
+    '1457664338163667072', // Senior Middleman
+    '1470227366692392960', // Trainee Middleman
+    '1467922047148625920'  // Trusted
+];
+
+// Get staff verification data (filtered by specific roles)
 router.get('/verification/:guildId', async (req, res) => {
     try {
         const { guildId } = req.params;
@@ -19,18 +28,6 @@ router.get('/verification/:guildId', async (req, res) => {
         // Fetch all members
         await guild.members.fetch();
 
-        // Get all roles sorted by position (highest first)
-        const roles = guild.roles.cache
-            .filter(role => role.name !== '@everyone')
-            .sort((a, b) => b.position - a.position)
-            .map(role => ({
-                id: role.id,
-                name: role.name,
-                color: role.hexColor,
-                position: role.position,
-                memberCount: role.members.size
-            }));
-
         // Get all staff custom info from database
         const { query } = require('../utils/db');
         const staffInfoData = await query(
@@ -47,14 +44,15 @@ router.get('/verification/:guildId', async (req, res) => {
             };
         });
 
-        // Get staff members organized by role
+        // Get staff members organized by role (only specific roles)
         const staffByRole = [];
 
-        for (const role of guild.roles.cache
-            .filter(r => r.name !== '@everyone')
-            .sort((a, b) => b.position - a.position)
-            .values()) {
-            
+        const staffRoles = STAFF_ROLE_IDS
+            .map(roleId => guild.roles.cache.get(roleId))
+            .filter(role => role !== undefined)
+            .sort((a, b) => b.position - a.position);
+
+        for (const role of staffRoles) {
             const members = role.members
                 .filter(member => !member.user.bot)
                 .map(member => {
@@ -107,7 +105,6 @@ router.get('/verification/:guildId', async (req, res) => {
 
         res.json({
             guild: guildInfo,
-            roles,
             staffByRole
         });
 
@@ -148,7 +145,8 @@ function getRoleEmoji(roleName) {
         'apprentice': '🪸',
         'retired': '🛠️',
         'godlike': '⚝',
-        'lead': '🫟'
+        'lead': '🫟',
+        'middleman': '🤝'
     };
 
     const lowerName = roleName.toLowerCase();
@@ -357,43 +355,44 @@ async function buildStaffEmbed(guild, staffInfo) {
     const { EmbedBuilder } = require('discord.js');
     
     await guild.members.fetch();
-    const roleHierarchy = guild.roles.cache
-        .filter(role => role.name !== '@everyone')
-        .sort((a, b) => b.position - a.position);
 
     const embed = new EmbedBuilder()
         .setColor('#00FF00')
-        .setTitle(`✅ ${guild.name} Officials`)
+        .setTitle('✅ Supreme Officials')
         .setDescription(
-            `Welcome to the **only official verification hub** of ${guild.name}.\n` +
-            `Before you trust any server, account, or tag, always check this message first.\n\n` +
+            `Welcome to the **only official verification hub** of Supreme MM.\n` +
+            `Before you trust any server, account, or "Supreme / SMMP" tag, always check this message first.\n\n` +
+            `The "Supreme / SMMP" tag is public – anyone can use it.\n` +
+            `Having "Supreme", "SMMP" or similar in a name or status does not make a user trusted or staff.\n` +
             `Only what is listed in this embed is considered official.`
         )
         .setTimestamp()
-        .setFooter({ text: `${guild.name} Verification System` });
+        .setFooter({ text: 'Supreme MM Verification System' });
 
     embed.addFields({
-        name: '🌐 Official Server Information',
-        value: `**Server Name:** ${guild.name}\n` +
-               `**Server ID:** ${guild.id}\n` +
-               `**Created:** <t:${Math.floor(guild.createdTimestamp / 1000)}:D>`,
+        name: '🌐 Official Supreme MM Server',
+        value: 
+            `**Official Supreme Invite:** https://discord.gg/smmp\n` +
+            `**Official Supreme MM Server ID:** 1354399868851978322\n` +
+            `All official Middleman cases are handled **exclusively** on this server,\n` +
+            `with verified Supreme MM staff and through the official ticket system.`,
         inline: false
     });
 
-    const staffByRole = new Map();
-    for (const role of roleHierarchy.values()) {
-        const membersWithRole = role.members
+    const staffRoles = STAFF_ROLE_IDS
+        .map(roleId => guild.roles.cache.get(roleId))
+        .filter(role => role !== undefined)
+        .sort((a, b) => b.position - a.position);
+
+    let fieldCount = 1;
+    for (const role of staffRoles) {
+        if (fieldCount >= 25) break;
+
+        const members = role.members
             .filter(member => !member.user.bot)
             .sort((a, b) => a.user.username.localeCompare(b.user.username));
 
-        if (membersWithRole.size > 0) {
-            staffByRole.set(role, membersWithRole);
-        }
-    }
-
-    let fieldCount = 1;
-    for (const [role, members] of staffByRole) {
-        if (fieldCount >= 25) break;
+        if (members.size === 0) continue;
 
         const roleEmoji = getRoleEmoji(role.name);
         let memberList = '';

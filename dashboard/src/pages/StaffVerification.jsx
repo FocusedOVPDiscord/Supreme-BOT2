@@ -6,8 +6,7 @@ export default function StaffVerification() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [data, setData] = useState(null);
-    const [excludedRoles, setExcludedRoles] = useState(['member', 'verified', 'everyone']);
-    const [customExclude, setCustomExclude] = useState('');
+
     const [editingMember, setEditingMember] = useState(null);
     const [editForm, setEditForm] = useState({ mainEpic: '', additionalMM: '', customNotes: '' });
     const [saving, setSaving] = useState(false);
@@ -34,21 +33,7 @@ export default function StaffVerification() {
         }
     };
 
-    const addExcludedRole = () => {
-        if (customExclude.trim() && !excludedRoles.includes(customExclude.toLowerCase().trim())) {
-            setExcludedRoles([...excludedRoles, customExclude.toLowerCase().trim()]);
-            setCustomExclude('');
-        }
-    };
 
-    const removeExcludedRole = (role) => {
-        setExcludedRoles(excludedRoles.filter(r => r !== role));
-    };
-
-    const isRoleExcluded = (roleName) => {
-        const lowerName = roleName.toLowerCase();
-        return excludedRoles.some(excluded => lowerName.includes(excluded));
-    };
 
     const openEditModal = (member) => {
         setEditingMember(member);
@@ -119,7 +104,7 @@ export default function StaffVerification() {
         }
     };
 
-    const filteredStaff = data?.staffByRole.filter(item => !isRoleExcluded(item.role.name)) || [];
+    const filteredStaff = data?.staffByRole || [];
 
     if (loading) {
         return (
@@ -207,44 +192,12 @@ export default function StaffVerification() {
                     </div>
                 </div>
 
-                {/* Role Filter */}
-                <div className="bg-gray-800/50 rounded-lg p-6 mb-8 border border-gray-700">
-                    <h2 className="text-xl font-bold mb-4">🔧 Role Filter</h2>
-                    <p className="text-gray-400 mb-4 text-sm">
-                        Exclude low-level roles like "Member" or "Verified" from the staff list.
+                {/* Info Notice */}
+                <div className="bg-blue-900/20 border border-blue-500 rounded-lg p-6 mb-8">
+                    <h2 className="text-xl font-bold mb-2 text-blue-400">ℹ️ Auto-Filtered Staff Roles</h2>
+                    <p className="text-gray-300 text-sm">
+                        This page automatically shows only verified staff roles: <strong>Founder, Moderator, Senior Middleman, Trainee Middleman, and Trusted</strong>.
                     </p>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                        {excludedRoles.map(role => (
-                            <span
-                                key={role}
-                                className="bg-red-900/30 border border-red-500 px-3 py-1 rounded-full text-sm flex items-center gap-2"
-                            >
-                                {role}
-                                <button
-                                    onClick={() => removeExcludedRole(role)}
-                                    className="text-red-400 hover:text-red-300 font-bold"
-                                >
-                                    ×
-                                </button>
-                            </span>
-                        ))}
-                    </div>
-                    <div className="flex gap-2">
-                        <input
-                            type="text"
-                            value={customExclude}
-                            onChange={(e) => setCustomExclude(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && addExcludedRole()}
-                            placeholder="Add role keyword to exclude..."
-                            className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
-                        />
-                        <button
-                            onClick={addExcludedRole}
-                            className="bg-purple-600 hover:bg-purple-700 px-6 py-2 rounded-lg font-semibold transition"
-                        >
-                            Add
-                        </button>
-                    </div>
                 </div>
 
                 {/* Staff List */}
@@ -252,7 +205,7 @@ export default function StaffVerification() {
                     {filteredStaff.length === 0 ? (
                         <div className="bg-gray-800/50 rounded-lg p-8 text-center border border-gray-700">
                             <p className="text-gray-400 text-lg">
-                                No staff roles to display. Adjust the role filter to show more roles.
+                                No staff members found with verified roles.
                             </p>
                         </div>
                     ) : (
