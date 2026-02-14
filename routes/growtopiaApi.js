@@ -9,7 +9,8 @@ const PriceAnalyzer = require('../utils/priceAnalyzer');
  */
 router.get('/items', async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 50;
+    const limit = parseInt(req.query.limit, 10) || 50;
+    const limitNum = Number(limit);
     const search = req.query.search || '';
 
     let items;
@@ -32,7 +33,7 @@ router.get('/items', async (req, res) => {
          GROUP BY gt_items.id 
          ORDER BY price_count DESC 
          LIMIT ?`,
-        [limit]
+        [limitNum]
       );
     }
 
@@ -118,18 +119,19 @@ router.get('/item/:id/analysis', async (req, res) => {
 router.get('/leaderboard', async (req, res) => {
   try {
     const type = req.query.type || 'all';
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const limitNum = Number(limit);
 
     let leaderboard;
     if (type === 'monthly') {
       leaderboard = await query(
         'SELECT user_id, username, total_prices_added, monthly_points FROM gt_admin_stats ORDER BY monthly_points DESC LIMIT ?',
-        [limit]
+        [limitNum]
       );
     } else {
       leaderboard = await query(
         'SELECT user_id, username, total_prices_added, total_points FROM gt_admin_stats ORDER BY total_points DESC LIMIT ?',
-        [limit]
+        [limitNum]
       );
     }
 
