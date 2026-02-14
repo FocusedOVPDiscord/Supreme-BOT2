@@ -10,7 +10,7 @@ let transporter = null;
 
 function getTransporter() {
     if (!transporter) {
-        transporter = nodemailer.createTransporter({
+        transporter = nodemailer.createTransport({
             service: 'gmail',
             auth: {
                 user: EMAIL_USER,
