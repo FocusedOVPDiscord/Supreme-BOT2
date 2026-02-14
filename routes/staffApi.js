@@ -408,7 +408,7 @@ async function buildStaffEmbed(guild, staffInfo) {
             const info = staffInfo[member.user.id] || {};
             
             let memberInfo = 
-                `**Name:** @${member.user.username}\n` +
+                `**Name:** <@${member.user.id}>\n` +
                 `**User ID:** ${member.user.id}\n` +
                 `**Account created:** ${accountCreated}\n` +
                 `**Role:** ${role}`;
