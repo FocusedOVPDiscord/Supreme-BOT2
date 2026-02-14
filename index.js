@@ -463,6 +463,10 @@ app.use('/api/dashboard', dashboardApi);
 const aiApi = require('./routes/aiApi');
 app.use('/api/ai', aiApi);
 
+// Staff Verification API routes
+const staffApi = require('./routes/staffApi');
+app.use('/api/staff', staffApi);
+
 // Serve static files for the React dashboard
 const dashboardDistPath = path.join(__dirname, 'dashboard', 'dist');
 if (fs.existsSync(dashboardDistPath)) {

@@ -61,6 +61,9 @@ export default function Sidebar({ user, setIsAuthenticated, onClose }) {
     { path: '/dashboard/ai', label: 'AI Bot', icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
     )},
+    { path: `/dashboard/staff-verification/${selectedGuild?.id || ''}`, label: 'Staff List', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+    ), disabled: !selectedGuild },
   ];
 
   const isActive = (path) => location.pathname === path;
@@ -107,26 +110,40 @@ export default function Sidebar({ user, setIsAuthenticated, onClose }) {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 lg:px-4 py-4 space-y-1.5 overflow-y-auto">
-        {menuItems.map((item) => (
-          <Link
-            key={item.path}
-            to={item.path}
-            onClick={onClose}
-            className={`flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 group ${
-              isActive(item.path)
-                ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 shadow-lg shadow-indigo-500/10'
-                : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
-            }`}
-          >
-            <div className={`transition-colors duration-300 ${isActive(item.path) ? 'text-indigo-400' : 'group-hover:text-slate-200'}`}>
-              {item.icon}
-            </div>
-            {isOpen && <span className="font-medium">{item.label}</span>}
-            {isActive(item.path) && isOpen && (
-              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)]"></div>
-            )}
-          </Link>
-        ))}
+        {menuItems.map((item) => {
+          if (item.disabled) {
+            return (
+              <div
+                key={item.path}
+                className="flex items-center gap-4 px-4 py-3 rounded-2xl text-slate-600 cursor-not-allowed opacity-50"
+                title="Select a server first"
+              >
+                <div>{item.icon}</div>
+                {isOpen && <span className="font-medium">{item.label}</span>}
+              </div>
+            );
+          }
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              onClick={onClose}
+              className={`flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 group ${
+                isActive(item.path)
+                  ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 shadow-lg shadow-indigo-500/10'
+                  : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+              }`}
+            >
+              <div className={`transition-colors duration-300 ${isActive(item.path) ? 'text-indigo-400' : 'group-hover:text-slate-200'}`}>
+                {item.icon}
+              </div>
+              {isOpen && <span className="font-medium">{item.label}</span>}
+              {isActive(item.path) && isOpen && (
+                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)]"></div>
+              )}
+            </Link>
+          );
+        })}
       </nav>
 
       {/* User Profile */}
