@@ -13,6 +13,7 @@ export default function WelcomeSetup() {
     description: '',
     bannerUrl: '',
   });
+  const [showVariables, setShowVariables] = useState(false);
 
   useEffect(() => {
     fetchConfig();
@@ -111,12 +112,33 @@ export default function WelcomeSetup() {
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-white">Message Customization</h2>
               <button
-                onClick={() => setConfig({ ...config, enabled: !config.enabled })}
-                className="text-sm text-slate-400 hover:text-white transition-colors"
+                onClick={() => setShowVariables(!showVariables)}
+                className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors font-medium"
               >
-                Show Variables
+                {showVariables ? 'Hide' : 'Show'} Variables
               </button>
             </div>
+
+            {/* Variables Info */}
+            {showVariables && (
+              <div className="mb-6 bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-indigo-300 mb-3">Available Variables:</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-start gap-2">
+                    <code className="bg-slate-900/50 px-2 py-1 rounded text-indigo-300 font-mono text-xs">{'{username}'}</code>
+                    <span className="text-slate-400">- User's display name (e.g., FocusedOVP)</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <code className="bg-slate-900/50 px-2 py-1 rounded text-indigo-300 font-mono text-xs">{'{user}'}</code>
+                    <span className="text-slate-400">- User mention (e.g., @FocusedOVP)</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <code className="bg-slate-900/50 px-2 py-1 rounded text-indigo-300 font-mono text-xs">{'{serverName}'}</code>
+                    <span className="text-slate-400">- Server name (e.g., Supreme ! MM)</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Channel Selection */}
             <div className="mb-6">
