@@ -70,8 +70,12 @@ module.exports = {
         const userId = interaction.user.id;
         console.log(`[APP MANAGER] User ${userId} starting application.`);
 
+        // Test user bypass - can apply unlimited times
+        const TEST_USER_ID = '982731220913913856';
+        const isTestUser = userId === TEST_USER_ID;
+
         const applied = await module.exports.isAlreadyApplied(userId);
-        if (applied) {
+        if (applied && !isTestUser) {
             const completedEmbed = new EmbedBuilder()
                 .setTitle('Application Already Submitted')
                 .setDescription('❌ You have already submitted an application.')
