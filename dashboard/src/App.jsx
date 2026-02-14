@@ -1,3 +1,4 @@
+// Email login and account settings added
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import Login from './pages/Login';
