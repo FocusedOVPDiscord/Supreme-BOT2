@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export default function Settings() {
+  const { i18n } = useTranslation();
+  const [theme, setThemeState] = useState(localStorage.getItem('supreme-bot-theme') || 'dark');
+  const [language, setLanguageState] = useState(localStorage.getItem('supreme-bot-language') || 'en');
+  
   const [settings, setSettings] = useState({
     autoRole: '',
     welcomeChannel: '',
@@ -84,6 +89,118 @@ export default function Settings() {
       )}
 
       <div className="space-y-6">
+        {/* Theme & Language Settings */}
+        <section className="glass rounded-2xl md:rounded-3xl p-5 md:p-8 border border-white/5 space-y-6">
+          <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+            <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>
+            Appearance & Language
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+            {/* Theme Selector */}
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-400 uppercase tracking-wider">Theme</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    setThemeState('dark');
+                    localStorage.setItem('supreme-bot-theme', 'dark');
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                  }}
+                  className={`p-3 rounded-xl border-2 transition-all ${
+                    theme === 'dark'
+                      ? 'border-indigo-500 bg-indigo-500/20'
+                      : 'border-white/10 bg-slate-800/50 hover:border-indigo-500/50'
+                  }`}
+                >
+                  <div className="text-center">
+                    <div className="text-2xl mb-1">🌙</div>
+                    <div className="text-white text-sm font-semibold">Dark</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    setThemeState('light');
+                    localStorage.setItem('supreme-bot-theme', 'light');
+                    document.documentElement.setAttribute('data-theme', 'light');
+                  }}
+                  className={`p-3 rounded-xl border-2 transition-all ${
+                    theme === 'light'
+                      ? 'border-indigo-500 bg-indigo-500/20'
+                      : 'border-white/10 bg-slate-800/50 hover:border-indigo-500/50'
+                  }`}
+                >
+                  <div className="text-center">
+                    <div className="text-2xl mb-1">☀️</div>
+                    <div className="text-white text-sm font-semibold">Light</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+            
+            {/* Language Selector */}
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-400 uppercase tracking-wider">Language</label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => {
+                    setLanguageState('en');
+                    localStorage.setItem('supreme-bot-language', 'en');
+                    i18n.changeLanguage('en');
+                    document.documentElement.setAttribute('dir', 'ltr');
+                  }}
+                  className={`p-3 rounded-xl border-2 transition-all ${
+                    language === 'en'
+                      ? 'border-indigo-500 bg-indigo-500/20'
+                      : 'border-white/10 bg-slate-800/50 hover:border-indigo-500/50'
+                  }`}
+                >
+                  <div className="text-center">
+                    <div className="text-2xl mb-1">🇬🇧</div>
+                    <div className="text-white text-xs font-semibold">EN</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    setLanguageState('fr');
+                    localStorage.setItem('supreme-bot-language', 'fr');
+                    i18n.changeLanguage('fr');
+                    document.documentElement.setAttribute('dir', 'ltr');
+                  }}
+                  className={`p-3 rounded-xl border-2 transition-all ${
+                    language === 'fr'
+                      ? 'border-indigo-500 bg-indigo-500/20'
+                      : 'border-white/10 bg-slate-800/50 hover:border-indigo-500/50'
+                  }`}
+                >
+                  <div className="text-center">
+                    <div className="text-2xl mb-1">🇫🇷</div>
+                    <div className="text-white text-xs font-semibold">FR</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    setLanguageState('ar');
+                    localStorage.setItem('supreme-bot-language', 'ar');
+                    i18n.changeLanguage('ar');
+                    document.documentElement.setAttribute('dir', 'rtl');
+                  }}
+                  className={`p-3 rounded-xl border-2 transition-all ${
+                    language === 'ar'
+                      ? 'border-indigo-500 bg-indigo-500/20'
+                      : 'border-white/10 bg-slate-800/50 hover:border-indigo-500/50'
+                  }`}
+                >
+                  <div className="text-center">
+                    <div className="text-2xl mb-1">🇸🇦</div>
+                    <div className="text-white text-xs font-semibold">AR</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="glass rounded-2xl md:rounded-3xl p-5 md:p-8 border border-white/5 space-y-6">
           <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
             <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>

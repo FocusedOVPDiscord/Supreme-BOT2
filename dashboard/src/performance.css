@@ -1,0 +1,55 @@
+/* Performance-based animations */
+
+/* Apply performance detection on page load */
+html {
+  --transition-speed: 300ms;
+}
+
+html[data-performance="low"] {
+  --transition-speed: 100ms;
+}
+
+html[data-performance="medium"] {
+  --transition-speed: 200ms;
+}
+
+html[data-performance="high"] {
+  --transition-speed: 300ms;
+}
+
+/* Reduce motion for low-end devices */
+html[data-performance="low"] * {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* Apply transitions based on performance */
+* {
+  transition-duration: var(--transition-speed);
+}
+
+/* Theme transitions */
+html[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f3f4f6;
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+}
+
+html[data-theme="dark"] {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+}
+
+/* RTL Support for Arabic */
+html[dir="rtl"] {
+  direction: rtl;
+}
+
+html[dir="rtl"] .sidebar {
+  left: auto;
+  right: 0;
+}

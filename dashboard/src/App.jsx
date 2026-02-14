@@ -1,11 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import './i18n'; // Initialize i18n
+import './performance.css'; // Performance-based styles
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Tickets from './pages/Tickets';
 import Users from './pages/Users';
 import Giveaways from './pages/Giveaways';
-import Settings from './pages/Settings';
+import Settings from './pages/BotSettings';
 import AuditLogs from './pages/AuditLogs';
 import Transcripts from './pages/Transcripts';
 import AI from './pages/AI';
