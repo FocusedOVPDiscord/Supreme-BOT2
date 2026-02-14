@@ -1,0 +1,83 @@
+{
+  "nav": {
+    "overview": "Aperçu",
+    "tickets": "Tickets",
+    "users": "Utilisateurs",
+    "giveaways": "Cadeaux",
+    "settings": "Paramètres",
+    "auditLogs": "Journaux d'audit",
+    "transcripts": "Transcriptions",
+    "ai": "Assistant IA",
+    "staffVerification": "Vérification du personnel",
+    "welcomeSetup": "Configuration de bienvenue",
+    "logout": "Déconnexion"
+  },
+  "common": {
+    "loading": "Chargement...",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "create": "Créer",
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "export": "Exporter",
+    "import": "Importer",
+    "refresh": "Actualiser",
+    "close": "Fermer",
+    "submit": "Soumettre",
+    "reset": "Réinitialiser",
+    "confirm": "Confirmer",
+    "back": "Retour",
+    "next": "Suivant",
+    "previous": "Précédent",
+    "selectServer": "Sélectionner le serveur",
+    "noServerSelected": "Aucun serveur sélectionné",
+    "staffMember": "Membre du personnel"
+  },
+  "dashboard": {
+    "title": "Tableau de bord",
+    "welcome": "Bon retour",
+    "statistics": "Statistiques",
+    "recentActivity": "Activité récente",
+    "quickActions": "Actions rapides"
+  },
+  "tickets": {
+    "title": "Tickets de support",
+    "open": "Tickets ouverts",
+    "closed": "Tickets fermés",
+    "pending": "En attente",
+    "resolved": "Résolu",
+    "createTicket": "Créer un ticket",
+    "viewTicket": "Voir le ticket",
+    "closeTicket": "Fermer le ticket"
+  },
+  "users": {
+    "title": "Gestion des utilisateurs",
+    "totalUsers": "Total des utilisateurs",
+    "activeUsers": "Utilisateurs actifs",
+    "bannedUsers": "Utilisateurs bannis",
+    "viewProfile": "Voir le profil",
+    "banUser": "Bannir l'utilisateur",
+    "unbanUser": "Débannir l'utilisateur"
+  },
+  "settings": {
+    "title": "Paramètres",
+    "general": "Paramètres généraux",
+    "appearance": "Apparence",
+    "language": "Langue",
+    "theme": "Thème",
+    "darkMode": "Mode sombre",
+    "lightMode": "Mode clair",
+    "notifications": "Notifications",
+    "security": "Sécurité",
+    "advanced": "Avancé"
+  },
+  "auth": {
+    "login": "Connexion",
+    "logout": "Déconnexion",
+    "loginWithDiscord": "Se connecter avec Discord",
+    "welcomeBack": "Bon retour!",
+    "pleaseLogin": "Veuillez vous connecter pour continuer"
+  }
+}

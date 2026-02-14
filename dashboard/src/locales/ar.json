@@ -1,0 +1,83 @@
+{
+  "nav": {
+    "overview": "نظرة عامة",
+    "tickets": "التذاكر",
+    "users": "المستخدمون",
+    "giveaways": "الهدايا",
+    "settings": "الإعدادات",
+    "auditLogs": "سجلات التدقيق",
+    "transcripts": "النصوص",
+    "ai": "مساعد الذكاء الاصطناعي",
+    "staffVerification": "التحقق من الموظفين",
+    "welcomeSetup": "إعداد الترحيب",
+    "logout": "تسجيل الخروج"
+  },
+  "common": {
+    "loading": "جاري التحميل...",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "create": "إنشاء",
+    "search": "بحث",
+    "filter": "تصفية",
+    "export": "تصدير",
+    "import": "استيراد",
+    "refresh": "تحديث",
+    "close": "إغلاق",
+    "submit": "إرسال",
+    "reset": "إعادة تعيين",
+    "confirm": "تأكيد",
+    "back": "رجوع",
+    "next": "التالي",
+    "previous": "السابق",
+    "selectServer": "اختر الخادم",
+    "noServerSelected": "لم يتم اختيار خادم",
+    "staffMember": "عضو الطاقم"
+  },
+  "dashboard": {
+    "title": "لوحة التحكم",
+    "welcome": "مرحباً بعودتك",
+    "statistics": "الإحصائيات",
+    "recentActivity": "النشاط الأخير",
+    "quickActions": "إجراءات سريعة"
+  },
+  "tickets": {
+    "title": "تذاكر الدعم",
+    "open": "التذاكر المفتوحة",
+    "closed": "التذاكر المغلقة",
+    "pending": "قيد الانتظار",
+    "resolved": "تم الحل",
+    "createTicket": "إنشاء تذكرة",
+    "viewTicket": "عرض التذكرة",
+    "closeTicket": "إغلاق التذكرة"
+  },
+  "users": {
+    "title": "إدارة المستخدمين",
+    "totalUsers": "إجمالي المستخدمين",
+    "activeUsers": "المستخدمون النشطون",
+    "bannedUsers": "المستخدمون المحظورون",
+    "viewProfile": "عرض الملف الشخصي",
+    "banUser": "حظر المستخدم",
+    "unbanUser": "إلغاء حظر المستخدم"
+  },
+  "settings": {
+    "title": "الإعدادات",
+    "general": "الإعدادات العامة",
+    "appearance": "المظهر",
+    "language": "اللغة",
+    "theme": "السمة",
+    "darkMode": "الوضع الداكن",
+    "lightMode": "الوضع الفاتح",
+    "notifications": "الإشعارات",
+    "security": "الأمان",
+    "advanced": "متقدم"
+  },
+  "auth": {
+    "login": "تسجيل الدخول",
+    "logout": "تسجيل الخروج",
+    "loginWithDiscord": "تسجيل الدخول باستخدام Discord",
+    "welcomeBack": "مرحباً بعودتك!",
+    "pleaseLogin": "يرجى تسجيل الدخول للمتابعة"
+  }
+}

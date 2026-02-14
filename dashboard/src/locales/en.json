@@ -1,0 +1,83 @@
+{
+  "nav": {
+    "overview": "Overview",
+    "tickets": "Tickets",
+    "users": "Users",
+    "giveaways": "Giveaways",
+    "settings": "Settings",
+    "auditLogs": "Audit Logs",
+    "transcripts": "Transcripts",
+    "ai": "AI Assistant",
+    "staffVerification": "Staff Verification",
+    "welcomeSetup": "Welcome Setup",
+    "logout": "Logout"
+  },
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "import": "Import",
+    "refresh": "Refresh",
+    "close": "Close",
+    "submit": "Submit",
+    "reset": "Reset",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "selectServer": "Select Server",
+    "noServerSelected": "No server selected",
+    "staffMember": "Staff Member"
+  },
+  "dashboard": {
+    "title": "Dashboard Overview",
+    "welcome": "Welcome back",
+    "statistics": "Statistics",
+    "recentActivity": "Recent Activity",
+    "quickActions": "Quick Actions"
+  },
+  "tickets": {
+    "title": "Support Tickets",
+    "open": "Open Tickets",
+    "closed": "Closed Tickets",
+    "pending": "Pending",
+    "resolved": "Resolved",
+    "createTicket": "Create Ticket",
+    "viewTicket": "View Ticket",
+    "closeTicket": "Close Ticket"
+  },
+  "users": {
+    "title": "User Management",
+    "totalUsers": "Total Users",
+    "activeUsers": "Active Users",
+    "bannedUsers": "Banned Users",
+    "viewProfile": "View Profile",
+    "banUser": "Ban User",
+    "unbanUser": "Unban User"
+  },
+  "settings": {
+    "title": "Settings",
+    "general": "General Settings",
+    "appearance": "Appearance",
+    "language": "Language",
+    "theme": "Theme",
+    "darkMode": "Dark Mode",
+    "lightMode": "Light Mode",
+    "notifications": "Notifications",
+    "security": "Security",
+    "advanced": "Advanced"
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "loginWithDiscord": "Login with Discord",
+    "welcomeBack": "Welcome back!",
+    "pleaseLogin": "Please login to continue"
+  }
+}
