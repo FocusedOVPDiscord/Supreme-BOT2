@@ -573,6 +573,10 @@ app.use('/api/staff', staffApi);
 const welcomeApi = require('./routes/welcomeApi');
 app.use('/api/welcome', welcomeApi);
 
+// Growtopia Price Tracking API routes
+const growtopiaApi = require('./routes/growtopiaApi');
+app.use('/api/growtopia', growtopiaApi);
+
 
 
 // Serve static files for the React dashboard
