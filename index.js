@@ -134,7 +134,7 @@ try {
                     UNIQUE KEY unique_guild_config (guild_id, config_key),
                     INDEX idx_guild (guild_id)
                 )
-            );
+            `);
             // Note: ai_config table created for Groq AI configuration
             console.log('✅ [STARTUP] TiDB Schema ready (including Groq AI tables).');
             
