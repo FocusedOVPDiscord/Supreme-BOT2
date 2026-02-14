@@ -1,6 +1,8 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { query } = require('../../utils/db');
 
+const POINTS_PER_PRICE = 1;
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('quick-price')
@@ -47,21 +49,32 @@ module.exports = {
         itemRarity = existingItems[0].rarity;
       }
 
-      // Add price data
+      // Add price to history (matching price-add schema)
       await query(
-        'INSERT INTO gt_price_history (item_id, user_id, price) VALUES (?, ?, ?)',
-        [itemId, userId, price]
+        'INSERT INTO gt_price_history (item_id, price, submitted_by, source, notes, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [itemId, price, userId, 'quick-add', null, Date.now()]
       );
 
-      // Update admin stats
-      await query(
-        `INSERT INTO gt_admin_stats (user_id, prices_added, items_added)
-         VALUES (?, 1, ?)
-         ON DUPLICATE KEY UPDATE 
-           prices_added = prices_added + 1,
-           items_added = items_added + ?`,
-        [userId, isNewItem ? 1 : 0, isNewItem ? 1 : 0]
-      );
+      // Update admin stats (matching price-add schema)
+      const statsResult = await query('SELECT id FROM gt_admin_stats WHERE user_id = ?', [userId]);
+      
+      if (statsResult.length === 0) {
+        // Create new admin stats entry
+        await query(
+          'INSERT INTO gt_admin_stats (user_id, username, total_prices_added, total_points, monthly_points, last_submission, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [userId, interaction.user.username, 1, POINTS_PER_PRICE, POINTS_PER_PRICE, Date.now(), Date.now(), Date.now()]
+        );
+      } else {
+        // Update existing stats
+        await query(
+          'UPDATE gt_admin_stats SET total_prices_added = total_prices_added + 1, total_points = total_points + ?, monthly_points = monthly_points + ?, last_submission = ?, username = ?, updated_at = ? WHERE user_id = ?',
+          [POINTS_PER_PRICE, POINTS_PER_PRICE, Date.now(), interaction.user.username, Date.now(), userId]
+        );
+      }
+
+      // Get updated stats
+      const updatedStats = await query('SELECT total_prices_added, total_points FROM gt_admin_stats WHERE user_id = ?', [userId]);
+      const stats = updatedStats[0];
 
       // Create success embed
       const embed = new EmbedBuilder()
@@ -70,7 +83,9 @@ module.exports = {
         .addFields(
           { name: '📦 Item', value: itemName, inline: true },
           { name: '💰 Price', value: `${price} WL`, inline: true },
-          { name: '🎨 Rarity', value: itemRarity, inline: true }
+          { name: '🎨 Rarity', value: itemRarity, inline: true },
+          { name: '⭐ Points Earned', value: `+${POINTS_PER_PRICE}`, inline: true },
+          { name: '📊 Your Stats', value: `**${stats.total_prices_added}** prices added\n**${stats.total_points}** total points`, inline: false }
         )
         .setFooter({ text: `Submitted by ${interaction.user.tag}` })
         .setTimestamp();
