@@ -1,6 +1,6 @@
 /**
  * DevTools Protection
- * Prevents hackers from using browser DevTools to inspect code or see errors
+ * Completely hides all console errors, logs, and network errors from hackers
  */
 
 class DevToolsProtection {
@@ -10,8 +10,11 @@ class DevToolsProtection {
   }
 
   init() {
-    // Disable console in production
-    this.disableConsole();
+    // MUST be first - disable ALL console output immediately
+    this.disableConsoleCompletely();
+    
+    // Suppress all errors
+    this.suppressAllErrors();
     
     // Detect DevTools opening
     this.detectDevTools();
@@ -22,44 +25,108 @@ class DevToolsProtection {
     // Disable right-click
     this.disableRightClick();
     
-    // Prevent text selection (optional)
+    // Prevent text selection
     this.preventSelection();
-    
-    // Clear console periodically
-    this.clearConsolePeriodically();
   }
 
   /**
-   * Disable console methods in production
+   * Completely disable ALL console output
    */
-  disableConsole() {
-    if (import.meta.env.PROD) {
-      const noop = () => {};
-      window.console = {
-        log: noop,
-        warn: noop,
-        error: noop,
-        info: noop,
-        debug: noop,
-        trace: noop,
-        dir: noop,
-        dirxml: noop,
-        group: noop,
-        groupCollapsed: noop,
-        groupEnd: noop,
-        time: noop,
-        timeEnd: noop,
-        timeLog: noop,
-        assert: noop,
-        clear: noop,
-        count: noop,
-        countReset: noop,
-        table: noop,
-        profile: noop,
-        profileEnd: noop,
-        timeStamp: noop,
-      };
+  disableConsoleCompletely() {
+    // Create empty function
+    const noop = () => {};
+    
+    // Override ALL console methods
+    const consoleMethods = [
+      'log', 'warn', 'error', 'info', 'debug', 'trace', 'dir', 'dirxml',
+      'group', 'groupCollapsed', 'groupEnd', 'time', 'timeEnd', 'timeLog',
+      'assert', 'clear', 'count', 'countReset', 'table', 'profile',
+      'profileEnd', 'timeStamp', 'exception', 'memory'
+    ];
+    
+    consoleMethods.forEach(method => {
+      try {
+        window.console[method] = noop;
+        console[method] = noop;
+      } catch (e) {
+        // Ignore errors
+      }
+    });
+
+    // Freeze console object to prevent modifications
+    try {
+      Object.freeze(window.console);
+    } catch (e) {
+      // Ignore
     }
+  }
+
+  /**
+   * Suppress ALL JavaScript errors globally
+   */
+  suppressAllErrors() {
+    // Catch all uncaught errors
+    window.addEventListener('error', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      return false;
+    }, true);
+
+    // Catch all promise rejections
+    window.addEventListener('unhandledrejection', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      return false;
+    }, true);
+
+    // Override onerror
+    window.onerror = () => false;
+    
+    // Override onunhandledrejection
+    window.onunhandledrejection = () => false;
+
+    // Catch all console errors at the lowest level
+    const originalError = console.error;
+    console.error = () => {};
+    
+    // Intercept fetch errors
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      try {
+        const response = await originalFetch(...args);
+        return response;
+      } catch (error) {
+        // Silently fail - don't log anything
+        return new Response(null, { status: 500 });
+      }
+    };
+
+    // Intercept XMLHttpRequest errors
+    const originalXHROpen = XMLHttpRequest.prototype.open;
+    const originalXHRSend = XMLHttpRequest.prototype.send;
+    
+    XMLHttpRequest.prototype.open = function(...args) {
+      this._url = args[1];
+      return originalXHROpen.apply(this, args);
+    };
+    
+    XMLHttpRequest.prototype.send = function(...args) {
+      this.addEventListener('error', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }, false);
+      
+      this.addEventListener('load', () => {
+        // Suppress error status codes from console
+        if (this.status >= 400) {
+          // Don't log anything
+        }
+      }, false);
+      
+      return originalXHRSend.apply(this, args);
+    };
   }
 
   /**
@@ -82,17 +149,19 @@ class DevToolsProtection {
       }
     }, 500);
 
-    // Alternative detection method
-    const devtools = /./;
-    devtools.toString = () => {
-      this.onDevToolsOpen();
-      return '';
+    // Alternative detection using debugger
+    const checkDevTools = () => {
+      const start = performance.now();
+      debugger;
+      const end = performance.now();
+      
+      if (end - start > 100) {
+        this.onDevToolsOpen();
+      }
     };
-    
-    // Trigger detection
-    setInterval(() => {
-      console.log('%c', devtools);
-    }, 1000);
+
+    // Check periodically (but not too often to avoid performance issues)
+    setInterval(checkDevTools, 1000);
   }
 
   /**
@@ -136,59 +205,68 @@ class DevToolsProtection {
   blockKeyboardShortcuts() {
     document.addEventListener('keydown', (e) => {
       // F12
-      if (e.key === 'F12') {
+      if (e.key === 'F12' || e.keyCode === 123) {
         e.preventDefault();
+        e.stopPropagation();
         return false;
       }
       
       // Ctrl+Shift+I (Inspect)
-      if (e.ctrlKey && e.shiftKey && e.key === 'I') {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.keyCode === 73)) {
         e.preventDefault();
+        e.stopPropagation();
         return false;
       }
       
       // Ctrl+Shift+J (Console)
-      if (e.ctrlKey && e.shiftKey && e.key === 'J') {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'J' || e.keyCode === 74)) {
         e.preventDefault();
+        e.stopPropagation();
         return false;
       }
       
       // Ctrl+Shift+C (Inspect Element)
-      if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'C' || e.keyCode === 67)) {
         e.preventDefault();
+        e.stopPropagation();
         return false;
       }
       
       // Ctrl+U (View Source)
-      if (e.ctrlKey && e.key === 'u') {
+      if (e.ctrlKey && (e.key === 'u' || e.key === 'U' || e.keyCode === 85)) {
         e.preventDefault();
+        e.stopPropagation();
         return false;
       }
       
       // Ctrl+S (Save Page)
-      if (e.ctrlKey && e.key === 's') {
+      if (e.ctrlKey && (e.key === 's' || e.key === 'S' || e.keyCode === 83)) {
         e.preventDefault();
+        e.stopPropagation();
         return false;
       }
       
       // Cmd+Option+I (Mac Inspect)
-      if (e.metaKey && e.altKey && e.key === 'i') {
+      if (e.metaKey && e.altKey && (e.key === 'i' || e.key === 'I')) {
         e.preventDefault();
+        e.stopPropagation();
         return false;
       }
       
       // Cmd+Option+J (Mac Console)
-      if (e.metaKey && e.altKey && e.key === 'j') {
+      if (e.metaKey && e.altKey && (e.key === 'j' || e.key === 'J')) {
         e.preventDefault();
+        e.stopPropagation();
         return false;
       }
       
       // Cmd+Option+C (Mac Inspect Element)
-      if (e.metaKey && e.altKey && e.key === 'c') {
+      if (e.metaKey && e.altKey && (e.key === 'c' || e.key === 'C')) {
         e.preventDefault();
+        e.stopPropagation();
         return false;
       }
-    });
+    }, true); // Use capture phase
   }
 
   /**
@@ -197,47 +275,33 @@ class DevToolsProtection {
   disableRightClick() {
     document.addEventListener('contextmenu', (e) => {
       e.preventDefault();
+      e.stopPropagation();
       return false;
-    });
+    }, true);
   }
 
   /**
-   * Prevent text selection (optional)
+   * Prevent text selection
    */
   preventSelection() {
     document.addEventListener('selectstart', (e) => {
       e.preventDefault();
       return false;
-    });
+    }, true);
     
     document.addEventListener('copy', (e) => {
       e.preventDefault();
       return false;
-    });
-  }
-
-  /**
-   * Clear console periodically
-   */
-  clearConsolePeriodically() {
-    setInterval(() => {
-      if (typeof console.clear === 'function') {
-        console.clear();
-      }
-    }, 2000);
-  }
-
-  /**
-   * Disable debugger
-   */
-  antiDebugger() {
-    setInterval(() => {
-      debugger;
-    }, 100);
+    }, true);
+    
+    document.addEventListener('cut', (e) => {
+      e.preventDefault();
+      return false;
+    }, true);
   }
 }
 
-// Initialize protection
+// Initialize protection IMMEDIATELY
 let protection = null;
 
 export function initDevToolsProtection() {
@@ -245,6 +309,11 @@ export function initDevToolsProtection() {
     protection = new DevToolsProtection();
   }
   return protection;
+}
+
+// Auto-initialize as soon as this module loads
+if (typeof window !== 'undefined') {
+  initDevToolsProtection();
 }
 
 export default DevToolsProtection;
