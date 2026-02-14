@@ -1,6 +1,6 @@
 const { Events, PermissionFlagsBits } = require('discord.js');
 const storage = require('../commands/utility/storage.js');
-const aiService = require('../utils/aiService');
+const groqAI = require('../utils/groqAI');
 
 const CONTROL_CHANNEL_ID = '1470577900540661925';
 
@@ -137,45 +137,38 @@ module.exports = {
         
         const channelName = channel.name;
         
-        // AI auto-response in ticket channels
+        // Groq AI auto-response in ticket channels
         if (channelName && channelName.startsWith('ticket-')) {
-            // Initialize AI if needed
-            await aiService.initialize(guild.id);
-
-            // Check if AI is enabled
-            if (aiService.isEnabled(guild.id)) {
+            // Check if Groq AI is configured
+            if (groqAI.isConfigured()) {
                 // Don't respond to staff messages (let staff handle it)
                 const STAFF_ROLE_IDS = ['982731220913913856', '958703198447755294', '1410661468688482314', '1457664338163667072', '1354402446994309123'];
-                const isStaff = message.member.roles.cache.some(role => STAFF_ROLE_IDS.includes(role.id));
+                const isStaff = message.member?.roles?.cache.some(role => STAFF_ROLE_IDS.includes(role.id));
                 
                 if (!isStaff) {
                     // Show typing indicator
                     await channel.sendTyping();
 
                     try {
-                        const response = await aiService.chat(
-                            guild.id,
+                        const response = await groqAI.generateResponse(
                             author.id,
-                            message.content,
-                            {
-                                channelName: channel.name,
-                                isTicket: true
-                            }
+                            channel.id,
+                            message.content
                         );
 
                         if (response) {
-                            // Split response if too long
+                            // Split response if too long (Discord limit is 2000 chars)
                             if (response.length > 2000) {
-                                const chunks = response.match(/.{1,2000}/g);
+                                const chunks = response.match(/[\s\S]{1,2000}/g) || [];
                                 for (const chunk of chunks) {
                                     await channel.send(chunk);
                                 }
                             } else {
-                                await channel.send(`🤖 ${response}`);
+                                await channel.send(response);
                             }
                         }
                     } catch (error) {
-                        console.error('AI ticket auto-response error:', error);
+                        console.error('[GROQ AI] Ticket auto-response error:', error);
                         // Silently fail - don't interrupt ticket flow
                     }
                 }

@@ -111,9 +111,21 @@ try {
                     answers JSON
                 )
             `);
+            await query(`
+                CREATE TABLE IF NOT EXISTS ai_conversations (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id VARCHAR(20) NOT NULL,
+                    channel_id VARCHAR(20) NOT NULL,
+                    role VARCHAR(20) NOT NULL,
+                    content TEXT NOT NULL,
+                    created_at BIGINT NOT NULL,
+                    INDEX idx_user_channel (user_id, channel_id),
+                    INDEX idx_created_at (created_at)
+                )
+            `);
             // Note: ai_config and ai_memory tables are created by migrateToTiDB.js
             // This ensures correct schema (VARCHAR not ENUM for TiDB compatibility)
-            console.log('✅ [STARTUP] TiDB Schema ready (AI tables handled by migration).');
+            console.log('✅ [STARTUP] TiDB Schema ready (including Groq AI conversations table).');
             
             // Run migration to add missing columns if table already existed
             await fixDatabase();
