@@ -14,16 +14,21 @@ const STAFF_ROLE_IDS = [
 router.get('/verification/:guildId', async (req, res) => {
     try {
         const { guildId } = req.params;
+        console.log('[Staff API] Fetching verification data for guild:', guildId);
         const client = req.app.get('client');
 
         if (!client) {
+            console.error('[Staff API] Bot client not available');
             return res.status(500).json({ error: 'Bot client not available' });
         }
 
         const guild = client.guilds.cache.get(guildId);
         if (!guild) {
+            console.error('[Staff API] Guild not found:', guildId);
+            console.log('[Staff API] Available guilds:', Array.from(client.guilds.cache.keys()));
             return res.status(404).json({ error: 'Guild not found' });
         }
+        console.log('[Staff API] Guild found:', guild.name);
 
         // Fetch all members
         await guild.members.fetch();
@@ -103,14 +108,15 @@ router.get('/verification/:guildId', async (req, res) => {
             createdAt: guild.createdTimestamp
         };
 
+        console.log('[Staff API] Returning data with', staffByRole.length, 'role groups');
         res.json({
             guild: guildInfo,
             staffByRole
         });
 
     } catch (error) {
-        console.error('Error fetching staff verification:', error);
-        res.status(500).json({ error: 'Failed to fetch staff verification data' });
+        console.error('[Staff API] Error fetching staff verification:', error);
+        res.status(500).json({ error: 'Failed to fetch staff verification data: ' + error.message });
     }
 });
 
