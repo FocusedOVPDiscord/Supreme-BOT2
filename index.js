@@ -468,6 +468,7 @@ const aiApi = require('./routes/aiApi');
 app.use('/api/ai', aiApi);
 
 // Staff Verification API routes
+app.set('client', client); // Make Discord client available to routes
 const staffApi = require('./routes/staffApi');
 app.use('/api/staff', staffApi);
 
