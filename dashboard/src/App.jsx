@@ -2,6 +2,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useEffect, useState } from 'react';
 import './i18n'; // Initialize i18n
 import './performance.css'; // Performance-based styles
+import './security.css'; // Security protection
+import { initDevToolsProtection } from './utils/devToolsProtection';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Tickets from './pages/Tickets';
@@ -23,6 +25,9 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
+    // Initialize DevTools protection
+    initDevToolsProtection();
+    
     const checkAuth = async () => {
       try {
         const response = await fetch('/api/dashboard/auth/me', {
