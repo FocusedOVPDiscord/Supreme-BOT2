@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const mysql = require('mysql2/promise');
+const { query } = require('../../utils/db');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -22,19 +22,9 @@ module.exports = {
     const price = interaction.options.getNumber('price');
     const userId = interaction.user.id;
 
-    let connection;
     try {
-      connection = await mysql.createConnection({
-        host: process.env.TIDB_HOST,
-        port: process.env.TIDB_PORT || 4000,
-        user: process.env.TIDB_USER,
-        password: process.env.TIDB_PASSWORD,
-        database: process.env.TIDB_DATABASE,
-        ssl: { rejectUnauthorized: true }
-      });
-
       // Check if item exists
-      const [existingItems] = await connection.execute(
+      const existingItems = await query(
         'SELECT id, name, rarity FROM gt_items WHERE LOWER(name) = ?',
         [itemName]
       );
@@ -45,7 +35,7 @@ module.exports = {
 
       if (existingItems.length === 0) {
         // Auto-create item with "common" rarity and generic description
-        const [insertResult] = await connection.execute(
+        const insertResult = await query(
           'INSERT INTO gt_items (name, description, rarity) VALUES (?, ?, ?)',
           [itemName, `Growtopia item: ${itemName}`, 'common']
         );
@@ -58,13 +48,13 @@ module.exports = {
       }
 
       // Add price data
-      await connection.execute(
+      await query(
         'INSERT INTO gt_price_history (item_id, user_id, price) VALUES (?, ?, ?)',
         [itemId, userId, price]
       );
 
       // Update admin stats
-      await connection.execute(
+      await query(
         `INSERT INTO gt_admin_stats (user_id, prices_added, items_added)
          VALUES (?, 1, ?)
          ON DUPLICATE KEY UPDATE 
@@ -101,10 +91,6 @@ module.exports = {
         .setTimestamp();
 
       await interaction.editReply({ embeds: [errorEmbed] });
-    } finally {
-      if (connection) {
-        await connection.end();
-      }
     }
   },
 };
