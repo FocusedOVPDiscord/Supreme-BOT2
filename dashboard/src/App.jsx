@@ -1,11 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import Login from './pages/Login';
+import EmailLogin from './pages/EmailLogin';
 import Dashboard from './pages/Dashboard';
 import Tickets from './pages/Tickets';
 import Users from './pages/Users';
 import Giveaways from './pages/Giveaways';
 import Settings from './pages/Settings';
+import AccountSettings from './pages/AccountSettings';
 import AuditLogs from './pages/AuditLogs';
 import Transcripts from './pages/Transcripts';
 import AI from './pages/AI';
@@ -101,10 +103,12 @@ function App() {
           <Routes>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/dashboard/login" element={<Login setIsAuthenticated={setIsAuthenticated} setUser={setUser} />} />
+            <Route path="/dashboard/email-login" element={<EmailLogin />} />
             <Route path="/dashboard/tickets" element={<Tickets />} />
             <Route path="/dashboard/users" element={<Users />} />
             <Route path="/dashboard/giveaways" element={<Giveaways />} />
             <Route path="/dashboard/settings" element={<Settings />} />
+            <Route path="/dashboard/account-settings" element={<AccountSettings />} />
             <Route path="/dashboard/audit-logs" element={<AuditLogs />} />
             <Route path="/dashboard/transcripts" element={<Transcripts />} />
             <Route path="/dashboard/ai" element={<AI />} />
