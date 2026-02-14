@@ -24,6 +24,7 @@
     "export": "Exporter",
     "import": "Importer",
     "refresh": "Actualiser",
+    "refreshData": "Actualiser les données",
     "close": "Fermer",
     "submit": "Soumettre",
     "reset": "Réinitialiser",
@@ -33,14 +34,28 @@
     "previous": "Précédent",
     "selectServer": "Sélectionner le serveur",
     "noServerSelected": "Aucun serveur sélectionné",
-    "staffMember": "Membre du personnel"
+    "staffMember": "Membre du personnel",
+    "viewAll": "Voir tout",
+    "live": "En direct",
+    "stable": "Stable",
+    "online": "En ligne",
+    "offline": "Hors ligne"
   },
   "dashboard": {
-    "title": "Tableau de bord",
-    "welcome": "Bon retour",
-    "statistics": "Statistiques",
+    "title": "Aperçu du système",
+    "subtitle": "Performances en temps réel et métriques communautaires pour",
+    "botUptime": "Temps de fonctionnement du bot",
+    "closedTickets": "Tickets fermés",
+    "activeTickets": "Tickets actifs",
+    "totalMembers": "Total des membres",
     "recentActivity": "Activité récente",
-    "quickActions": "Actions rapides"
+    "serverDetails": "Détails du serveur",
+    "noRecentActivity": "Aucune activité récente à afficher",
+    "serverName": "Nom du serveur",
+    "totalChannels": "Total des canaux",
+    "totalRoles": "Total des rôles",
+    "botStatus": "Statut du bot",
+    "version": "Version"
   },
   "tickets": {
     "title": "Tickets de support",

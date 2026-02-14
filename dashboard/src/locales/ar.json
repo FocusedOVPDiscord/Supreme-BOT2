@@ -24,6 +24,7 @@
     "export": "تصدير",
     "import": "استيراد",
     "refresh": "تحديث",
+    "refreshData": "تحديث البيانات",
     "close": "إغلاق",
     "submit": "إرسال",
     "reset": "إعادة تعيين",
@@ -33,14 +34,28 @@
     "previous": "السابق",
     "selectServer": "اختر الخادم",
     "noServerSelected": "لم يتم اختيار خادم",
-    "staffMember": "عضو الطاقم"
+    "staffMember": "عضو الطاقم",
+    "viewAll": "عرض الكل",
+    "live": "مباشر",
+    "stable": "مستقر",
+    "online": "متصل",
+    "offline": "غير متصل"
   },
   "dashboard": {
-    "title": "لوحة التحكم",
-    "welcome": "مرحباً بعودتك",
-    "statistics": "الإحصائيات",
+    "title": "نظرة عامة على النظام",
+    "subtitle": "الأداء في الوقت الفعلي ومقاييس المجتمع لـ",
+    "botUptime": "وقت تشغيل البوت",
+    "closedTickets": "التذاكر المغلقة",
+    "activeTickets": "التذاكر النشطة",
+    "totalMembers": "إجمالي الأعضاء",
     "recentActivity": "النشاط الأخير",
-    "quickActions": "إجراءات سريعة"
+    "serverDetails": "تفاصيل الخادم",
+    "noRecentActivity": "لا يوجد نشاط حديث لعرضه",
+    "serverName": "اسم الخادم",
+    "totalChannels": "إجمالي القنوات",
+    "totalRoles": "إجمالي الأدوار",
+    "botStatus": "حالة البوت",
+    "version": "الإصدار"
   },
   "tickets": {
     "title": "تذاكر الدعم",

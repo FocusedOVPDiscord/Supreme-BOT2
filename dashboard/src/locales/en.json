@@ -24,6 +24,7 @@
     "export": "Export",
     "import": "Import",
     "refresh": "Refresh",
+    "refreshData": "Refresh Data",
     "close": "Close",
     "submit": "Submit",
     "reset": "Reset",
@@ -33,14 +34,28 @@
     "previous": "Previous",
     "selectServer": "Select Server",
     "noServerSelected": "No server selected",
-    "staffMember": "Staff Member"
+    "staffMember": "Staff Member",
+    "viewAll": "View All",
+    "live": "Live",
+    "stable": "Stable",
+    "online": "Online",
+    "offline": "Offline"
   },
   "dashboard": {
-    "title": "Dashboard Overview",
-    "welcome": "Welcome back",
-    "statistics": "Statistics",
+    "title": "System Overview",
+    "subtitle": "Real-time performance and community metrics for",
+    "botUptime": "Bot Uptime",
+    "closedTickets": "Closed Tickets",
+    "activeTickets": "Active Tickets",
+    "totalMembers": "Total Members",
     "recentActivity": "Recent Activity",
-    "quickActions": "Quick Actions"
+    "serverDetails": "Server Details",
+    "noRecentActivity": "No recent activity to display",
+    "serverName": "Server Name",
+    "totalChannels": "Total Channels",
+    "totalRoles": "Total Roles",
+    "botStatus": "Bot Status",
+    "version": "Version"
   },
   "tickets": {
     "title": "Support Tickets",
