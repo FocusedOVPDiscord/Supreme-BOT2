@@ -33,8 +33,8 @@ async function getConversationHistory(userId, channelId) {
             `SELECT role, content FROM ai_conversations 
              WHERE user_id = ? AND channel_id = ? 
              ORDER BY created_at DESC 
-             LIMIT ?`,
-            [userId, channelId, MAX_HISTORY]
+             LIMIT ${MAX_HISTORY}`,
+            [userId, channelId]
         );
         
         // Reverse to get chronological order

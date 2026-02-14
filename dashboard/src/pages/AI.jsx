@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 export default function AI() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [enabled, setEnabled] = useState(false);
   const [stats, setStats] = useState({ totalMessages: 0, uniqueUsers: 0 });
@@ -120,10 +121,10 @@ export default function AI() {
       <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-4xl font-black text-white tracking-tight">
-            AI <span className="gradient-text">Ticket Bot</span>
+            {t('ai.title')}
           </h1>
           <p className="text-slate-400 mt-1 text-sm md:text-base">
-            Powered by GPT-4.1 • Free & Unlimited
+            Powered by Groq • llama-3.3-70b-versatile
           </p>
         </div>
         <button
@@ -135,7 +136,7 @@ export default function AI() {
               : 'bg-slate-700 hover:bg-slate-600 text-slate-300'
           } ${toggling ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
-          {toggling ? 'Updating...' : enabled ? '✅ AI Enabled' : '❌ AI Disabled'}
+          {toggling ? 'Updating...' : enabled ? `✅ ${t('ai.enabled')}` : `❌ ${t('common.disabled')}`}
         </button>
       </header>
 
@@ -147,7 +148,7 @@ export default function AI() {
               💬
             </div>
             <div>
-              <p className="text-slate-400 text-sm">Total Messages</p>
+              <p className="text-slate-400 text-sm">{t('common.totalMessages') || 'Total Messages'}</p>
               <p className="text-3xl font-black text-white">{stats.totalMessages.toLocaleString()}</p>
             </div>
           </div>
@@ -159,7 +160,7 @@ export default function AI() {
               👥
             </div>
             <div>
-              <p className="text-slate-400 text-sm">Unique Users</p>
+              <p className="text-slate-400 text-sm">{t('common.uniqueUsers') || 'Unique Users'}</p>
               <p className="text-3xl font-black text-white">{stats.uniqueUsers.toLocaleString()}</p>
             </div>
           </div>
@@ -171,8 +172,8 @@ export default function AI() {
               🤖
             </div>
             <div>
-              <p className="text-slate-400 text-sm">Status</p>
-              <p className="text-2xl font-black text-white">{enabled ? 'Online' : 'Offline'}</p>
+              <p className="text-slate-400 text-sm">{t('common.status')}</p>
+              <p className="text-2xl font-black text-white">{enabled ? t('common.online') : t('common.offline')}</p>
             </div>
           </div>
         </div>
@@ -241,17 +242,16 @@ export default function AI() {
             <div className="flex items-start gap-3">
               <span className="text-2xl">⚡</span>
               <div>
-                <p className="font-bold text-white">Powered by GPT-4.1</p>
-                <p className="text-sm text-slate-400">Free, unlimited access via Puter.js</p>
+                <p className="font-bold text-white">Powered by Groq AI</p>
+                <p className="text-sm text-slate-400">llama-3.3-70b-versatile model with 10-message memory</p>
               </div>
             </div>
           </div>
 
           <div className="mt-6 p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl">
             <p className="text-sm text-indigo-300">
-              <strong>Commands:</strong> Users can use <code className="bg-black/30 px-2 py-1 rounded">/ai</code> to chat with AI, 
-              <code className="bg-black/30 px-2 py-1 rounded ml-1">/ai-memory</code> to view history, 
-              and staff can use <code className="bg-black/30 px-2 py-1 rounded ml-1">/toggle-ai</code> to enable/disable.
+              <strong>Commands:</strong> Use <code className="bg-black/30 px-2 py-1 rounded">/ai-training</code> to configure AI, 
+              <code className="bg-black/30 px-2 py-1 rounded ml-1">/ai-memory</code> to manage conversation history (clear/delete/view/stats/export).
             </p>
           </div>
         </div>
