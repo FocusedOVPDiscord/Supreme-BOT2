@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import Toast from '../components/Toast';
 
 export default function WelcomeSetup() {
   const { guildId } = useParams();
@@ -14,6 +15,7 @@ export default function WelcomeSetup() {
     bannerUrl: '',
   });
   const [showVariables, setShowVariables] = useState(false);
+  const [toast, setToast] = useState(null);
 
   useEffect(() => {
     fetchConfig();
@@ -52,7 +54,7 @@ export default function WelcomeSetup() {
 
   const handleSave = async () => {
     if (config.enabled && !config.channelId) {
-      alert('Please select a channel to send welcome messages to');
+      setToast({ message: 'Please select a channel to send welcome messages to', type: 'error' });
       return;
     }
 
@@ -66,14 +68,14 @@ export default function WelcomeSetup() {
       });
 
       if (response.ok) {
-        alert('Welcome configuration saved successfully!');
+        setToast({ message: 'Welcome configuration saved successfully!', type: 'success' });
       } else {
         const error = await response.json();
-        alert(`Failed to save: ${error.error}`);
+        setToast({ message: `Failed to save: ${error.error}`, type: 'error' });
       }
     } catch (error) {
       console.error('Failed to save welcome config:', error);
-      alert('Failed to save configuration');
+      setToast({ message: 'Failed to save configuration', type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -98,7 +100,15 @@ export default function WelcomeSetup() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <>
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+      <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-white mb-2">Welcome Message Setup</h1>
         <p className="text-slate-400">Configure automatic welcome messages for new members</p>
@@ -321,5 +331,6 @@ export default function WelcomeSetup() {
         </div>
       </div>
     </div>
+    </>
   );
 }

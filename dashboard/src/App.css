@@ -138,8 +138,19 @@ select {
 }
 
 /* Toast notification */
-.toast-enter {
-  animation: fadeIn 0.3s ease-out;
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out;
 }
 
 /* Mobile-specific improvements */
