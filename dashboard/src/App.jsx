@@ -9,7 +9,7 @@ import Users from './pages/Users';
 import Giveaways from './pages/Giveaways';
 import Settings from './pages/Settings';
 import AccountSettings from './pages/AccountSettings';
-import AuditLogs from './pages/Audit Logs';
+import AuditLogs from './pages/AuditLogs';
 import Transcripts from './pages/Transcripts';
 import AI from './pages/AI';
 import StaffVerification from './pages/StaffVerification';
