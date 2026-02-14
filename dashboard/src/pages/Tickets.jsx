@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Toast from '../components/Toast';
 
 export default function Tickets() {
   const [tickets, setTickets] = useState([]);
@@ -7,6 +8,7 @@ export default function Tickets() {
   const [messages, setMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [toast, setToast] = useState(null);
 
   const fetchTickets = () => {
     setLoading(true);
@@ -53,11 +55,11 @@ export default function Tickets() {
       if (response.ok) {
         setTickets(tickets.filter(t => t.id !== ticketId));
       } else {
-        alert('Failed to delete ticket.');
+        setToast({ message: 'Failed to delete ticket', type: 'error' });
       }
     } catch (error) {
       console.error('Delete error:', error);
-      alert('An error occurred while deleting the ticket.');
+      setToast({ message: 'An error occurred while deleting the ticket', type: 'error' });
     } finally {
       setDeletingId(null);
     }
@@ -66,7 +68,15 @@ export default function Tickets() {
   if (loading) return <div className="p-8 text-white">Loading tickets...</div>;
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 md:space-y-8 animate-in fade-in duration-700">
+    <>
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+      <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 md:space-y-8 animate-in fade-in duration-700">
       <header>
         <h1 className="text-2xl md:text-4xl font-black text-white tracking-tight">Active <span className="gradient-text">Tickets</span></h1>
         <p className="text-slate-400 mt-1 text-sm md:text-base">Manage and respond to community support requests.</p>
@@ -179,5 +189,6 @@ export default function Tickets() {
         </div>
       )}
     </div>
+    </>
   );
 }

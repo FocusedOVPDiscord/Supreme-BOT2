@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import Toast from '../components/Toast';
 
 export default function StaffVerification() {
     const { guildId } = useParams();
@@ -11,6 +12,7 @@ export default function StaffVerification() {
     const [editForm, setEditForm] = useState({ mainEpic: '', additionalMM: '', customNotes: '' });
     const [saving, setSaving] = useState(false);
     const [updating, setUpdating] = useState(false);
+    const [toast, setToast] = useState(null);
 
     useEffect(() => {
         fetchStaffData();
@@ -70,10 +72,10 @@ export default function StaffVerification() {
             closeEditModal();
             
             // Show success message
-            alert('✅ Staff info saved successfully!');
+            setToast({ message: 'Staff info saved successfully!', type: 'success' });
 
         } catch (err) {
-            alert('❌ Error: ' + err.message);
+            setToast({ message: 'Error: ' + err.message, type: 'error' });
         } finally {
             setSaving(false);
         }
@@ -96,10 +98,10 @@ export default function StaffVerification() {
             }
 
             const result = await response.json();
-            alert('✅ ' + result.message);
+            setToast({ message: result.message, type: 'success' });
 
         } catch (err) {
-            alert('❌ Error: ' + err.message);
+            setToast({ message: 'Error: ' + err.message, type: 'error' });
         } finally {
             setUpdating(false);
         }
@@ -136,7 +138,15 @@ export default function StaffVerification() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8">
+        <>
+            {toast && (
+                <Toast
+                    message={toast.message}
+                    type={toast.type}
+                    onClose={() => setToast(null)}
+                />
+            )}
+            <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8">
             <div className="max-w-7xl mx-auto">
                 {/* Header */}
                 <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 rounded-lg p-6 md:p-8 mb-8 border border-purple-500/30">
@@ -376,5 +386,6 @@ export default function StaffVerification() {
                 </div>
             )}
         </div>
+        </>
     );
 }

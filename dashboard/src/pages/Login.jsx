@@ -1,6 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import Toast from '../components/Toast';
 
 export default function Login({ setIsAuthenticated, setUser }) {
+  const [toast, setToast] = useState(null);
   useEffect(() => {
     // Check if already authenticated and redirect to dashboard
     const checkAuth = async () => {
@@ -42,7 +44,7 @@ export default function Login({ setIsAuthenticated, setUser }) {
             setIsAuthenticated(true);
             window.history.replaceState({}, document.title, window.location.pathname);
           } else if (data.error) {
-            alert('Login failed: ' + data.error);
+            setToast({ message: 'Login failed: ' + data.error, type: 'error' });
           }
         })
         .catch((error) => {
@@ -65,7 +67,15 @@ export default function Login({ setIsAuthenticated, setUser }) {
   };
 
   return (
-    <div className="relative flex items-center justify-center h-screen bg-[#0f172a] overflow-hidden">
+    <>
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+      <div className="relative flex items-center justify-center h-screen bg-[#0f172a] overflow-hidden">
       {/* Animated Background Elements */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-600/20 blur-[120px] animate-pulse"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-purple-600/20 blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
@@ -113,5 +123,6 @@ export default function Login({ setIsAuthenticated, setUser }) {
         </p>
       </div>
     </div>
+    </>
   );
 }
