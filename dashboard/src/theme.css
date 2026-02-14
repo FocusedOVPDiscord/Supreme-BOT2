@@ -1,0 +1,121 @@
+/* Theme System - Light & Dark Mode */
+
+:root {
+  /* Dark Theme (Default) */
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --border-color: rgba(255, 255, 255, 0.1);
+  --shadow: rgba(0, 0, 0, 0.5);
+  --gradient-start: #667eea;
+  --gradient-end: #764ba2;
+}
+
+/* Light Theme */
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --border-color: rgba(0, 0, 0, 0.1);
+  --shadow: rgba(0, 0, 0, 0.1);
+  --gradient-start: #667eea;
+  --gradient-end: #764ba2;
+}
+
+/* Apply theme colors globally */
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Glass effect for cards */
+.glass {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  backdrop-filter: blur(10px);
+}
+
+/* Text colors */
+.text-primary {
+  color: var(--text-primary) !important;
+}
+
+.text-secondary {
+  color: var(--text-secondary) !important;
+}
+
+/* Backgrounds */
+.bg-primary {
+  background-color: var(--bg-primary);
+}
+
+.bg-secondary {
+  background-color: var(--bg-secondary);
+}
+
+.bg-tertiary {
+  background-color: var(--bg-tertiary);
+}
+
+/* Borders */
+.border-themed {
+  border-color: var(--border-color);
+}
+
+/* Shadows */
+.shadow-themed {
+  box-shadow: 0 4px 6px var(--shadow);
+}
+
+/* Gradient backgrounds */
+.gradient-bg {
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+}
+
+/* Theme transition for all elements */
+* {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Smooth transitions */
+.theme-transition {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Fix white backgrounds in light mode */
+[data-theme="light"] .bg-slate-900,
+[data-theme="light"] .bg-gray-900 {
+  background-color: var(--bg-primary) !important;
+}
+
+[data-theme="light"] .bg-slate-800,
+[data-theme="light"] .bg-gray-800 {
+  background-color: var(--bg-secondary) !important;
+}
+
+[data-theme="light"] .text-white {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .text-slate-400,
+[data-theme="light"] .text-gray-400 {
+  color: var(--text-secondary) !important;
+}
+
+/* Fix gradients in light mode */
+[data-theme="light"] .from-gray-900 {
+  --tw-gradient-from: var(--bg-primary);
+}
+
+[data-theme="light"] .via-purple-900 {
+  --tw-gradient-via: #c4b5fd;
+}
+
+[data-theme="light"] .to-gray-900 {
+  --tw-gradient-to: var(--bg-secondary);
+}

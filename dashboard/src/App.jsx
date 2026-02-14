@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import './i18n'; // Initialize i18n
 import './performance.css'; // Performance-based styles
 import './security.css'; // Security protection
+import './theme.css'; // Theme system
 import { initDevToolsProtection } from './utils/devToolsProtection';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';

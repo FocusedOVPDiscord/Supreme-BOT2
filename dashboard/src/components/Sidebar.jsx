@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import ServerSelector from './ServerSelector';
+import ThemeLanguageSwitcher from './ThemeLanguageSwitcher';
 
 export default function Sidebar({ user, setIsAuthenticated, onClose }) {
   const location = useLocation();
@@ -103,6 +104,13 @@ export default function Sidebar({ user, setIsAuthenticated, onClose }) {
           </button>
         </div>
       </div>
+
+      {/* Theme & Language Switcher */}
+      {isOpen && (
+        <div className="px-4 py-3 border-b border-white/5 flex justify-center">
+          <ThemeLanguageSwitcher />
+        </div>
+      )}
 
       {/* Server Selector */}
       {isOpen && (
