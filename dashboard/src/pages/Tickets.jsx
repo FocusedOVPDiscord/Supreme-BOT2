@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import Toast from '../components/Toast';
 
 export default function Tickets() {

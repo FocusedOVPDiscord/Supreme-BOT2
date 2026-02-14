@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const ACTION_COLORS = {
   'Member Banned': 'text-red-400 bg-red-500/10 border-red-500/20',
