@@ -122,9 +122,7 @@ try {
             const { migrateStaffInfo } = require('./migrations/add_staff_info');
             await migrateStaffInfo();
             
-            // Run email verification migration
-            const migrateEmailVerification = require('./migrations/add_email_verification');
-            await migrateEmailVerification();
+
         } catch (dbErr) {
             console.error('❌ [STARTUP] TiDB Schema initialization failed:', dbErr);
         }
@@ -476,9 +474,7 @@ app.set('client', client); // Make Discord client available to routes
 const staffApi = require('./routes/staffApi');
 app.use('/api/staff', staffApi);
 
-// Email Authentication API routes
-const emailAuthApi = require('./routes/emailAuthApi');
-app.use('/api/email-auth', emailAuthApi);
+
 
 // Serve static files for the React dashboard
 const dashboardDistPath = path.join(__dirname, 'dashboard', 'dist');

@@ -1,8 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 export default function Login({ setIsAuthenticated, setUser }) {
-  const [rememberMe, setRememberMe] = useState(false);
-
   useEffect(() => {
     // Check if already authenticated and redirect to dashboard
     const checkAuth = async () => {
@@ -34,7 +32,7 @@ export default function Login({ setIsAuthenticated, setUser }) {
       fetch('/api/dashboard/auth/callback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, rememberMe }),
+        body: JSON.stringify({ code }),
         credentials: 'include',
       })
         .then((res) => res.json())
@@ -87,20 +85,6 @@ export default function Login({ setIsAuthenticated, setUser }) {
             <p className="text-slate-400 text-sm">Please sign in with your Discord account to access the staff panel.</p>
           </div>
 
-          <div className="mb-6">
-            <label className="flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 text-indigo-600 bg-slate-900/50 border-white/10 rounded focus:ring-indigo-500 focus:ring-2"
-              />
-              <span className="ml-2 text-sm text-slate-300">
-                Remember me for 30 days
-              </span>
-            </label>
-          </div>
-
           <button
             onClick={handleDiscordLogin}
             className="group relative w-full gradient-bg hover:opacity-90 text-white font-bold py-4 px-6 rounded-2xl transition-all duration-300 flex items-center justify-center gap-3 shadow-xl shadow-indigo-500/25 overflow-hidden"
@@ -111,25 +95,6 @@ export default function Login({ setIsAuthenticated, setUser }) {
             </svg>
             <span className="relative z-10">Continue with Discord</span>
           </button>
-
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/10"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-slate-800/50 text-slate-400">or</span>
-            </div>
-          </div>
-
-          <a
-            href="/dashboard/email-login"
-            className="w-full py-4 px-6 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-2xl transition-colors flex items-center justify-center gap-3"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-            <span>Login with Email</span>
-          </a>
 
           <div className="mt-8 pt-8 border-t border-white/5 flex items-center gap-4">
             <div className="flex -space-x-2">

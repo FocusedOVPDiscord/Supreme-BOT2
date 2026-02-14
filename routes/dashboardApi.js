@@ -125,7 +125,7 @@ router.get('/auth/me', async (req, res) => {
  */
 router.post('/auth/callback', async (req, res) => {
   try {
-    const { code, rememberMe } = req.body;
+    const { code } = req.body;
     if (!code) return res.status(400).json({ error: 'Missing authorization code' });
 
     const tokenResponse = await axios.post('https://discord.com/api/v10/oauth2/token', {
@@ -167,13 +167,7 @@ router.post('/auth/callback', async (req, res) => {
       roles: userRoles,
       isStaff: true
     };
-    
-    // Set cookie expiration based on rememberMe
-    if (rememberMe) {
-      req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
-    } else {
-      req.session.cookie.maxAge = 24 * 60 * 60 * 1000; // 1 day
-    }
+
     
     const clientIP = getClientIP(req);
     await query(
