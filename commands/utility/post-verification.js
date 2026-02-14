@@ -104,10 +104,10 @@ module.exports = {
                         `**Role:** ${role}`;
                     
                     if (info.mainEpic) {
-                        memberInfo += `\n**Main Epic:** ${info.mainEpic}`;
+                        memberInfo += `\n**Main Epic:** ${info.mainEpic.replace(/_/g, '\\_')}`;
                     }
                     if (info.additionalMM) {
-                        memberInfo += `\n**Additional MM:** ${info.additionalMM}`;
+                        memberInfo += `\n**Additional MM:** ${info.additionalMM.replace(/_/g, '\\_')}`;
                     }
                     
                     memberInfo += '\n\n';

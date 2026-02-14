@@ -20,19 +20,14 @@ export default function StaffVerification() {
         try {
             setLoading(true);
             setError(null);
-            console.log('Fetching staff data for guild:', guildId);
             const response = await fetch(`/api/staff/verification/${guildId}`);
-            console.log('Response status:', response.status);
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-                console.error('API error:', errorData);
-                throw new Error(errorData.error || `HTTP ${response.status}: Failed to fetch staff data`);
+                throw new Error(errorData.error || 'Failed to fetch staff data');
             }
             const result = await response.json();
-            console.log('Staff data received:', result);
             setData(result);
         } catch (err) {
-            console.error('Fetch error:', err);
             setError(err.message);
         } finally {
             setLoading(false);
