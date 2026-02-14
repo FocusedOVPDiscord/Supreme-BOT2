@@ -10,6 +10,7 @@ import AuditLogs from './pages/AuditLogs';
 import Transcripts from './pages/Transcripts';
 import AI from './pages/AI';
 import StaffVerification from './pages/StaffVerification';
+import WelcomeSetup from './pages/WelcomeSetup';
 import Sidebar from './components/Sidebar';
 import './App.css';
 
@@ -109,6 +110,7 @@ function App() {
             <Route path="/dashboard/transcripts" element={<Transcripts />} />
             <Route path="/dashboard/ai" element={<AI />} />
             <Route path="/dashboard/staff-verification/:guildId" element={<StaffVerification />} />
+            <Route path="/dashboard/welcome-setup/:guildId" element={<WelcomeSetup />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </main>

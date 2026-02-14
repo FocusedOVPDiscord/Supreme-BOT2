@@ -474,6 +474,9 @@ app.set('client', client); // Make Discord client available to routes
 const staffApi = require('./routes/staffApi');
 app.use('/api/staff', staffApi);
 
+const welcomeApi = require('./routes/welcomeApi');
+app.use('/api/welcome', welcomeApi);
+
 
 
 // Serve static files for the React dashboard
