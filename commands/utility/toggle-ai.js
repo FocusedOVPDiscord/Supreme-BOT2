@@ -1,12 +1,12 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const aiService = require('../../utils/aiService');
+const { query } = require('../../utils/db');
 
 const STAFF_ROLE_IDS = ['982731220913913856', '958703198447755294', '1410661468688482314', '1457664338163667072', '1354402446994309123'];
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('toggle-ai')
-    .setDescription('Enable or disable the AI system (Staff only)')
+    .setDescription('Enable or disable the Groq AI system in tickets (Staff only)')
     .addBooleanOption(option =>
       option
         .setName('enabled')
@@ -34,30 +34,24 @@ module.exports = {
     await interaction.deferReply();
 
     try {
-      // Initialize AI if needed
-      await aiService.initialize(guildId);
+      // Store AI enabled state in database
+      await query(
+        'INSERT INTO ai_config (guild_id, config_key, config_value, created_at, updated_at) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE config_value = ?, updated_at = ?',
+        [guildId, 'ai_enabled', enabled ? '1' : '0', Date.now(), Date.now(), enabled ? '1' : '0', Date.now()]
+      );
 
-      // Toggle AI
-      const success = await aiService.toggle(guildId, enabled);
+      const embed = new EmbedBuilder()
+        .setTitle('🤖 Groq AI System Updated')
+        .setDescription(
+          enabled 
+            ? '✅ **AI system has been ENABLED**\n\n• AI will auto-respond in ticket channels\n• Uses llama-3.3-70b-versatile model\n• Conversation history saved (10 messages per user)\n• Use `/ai-training` to configure behavior\n• Use `/ai-memory` to manage conversations'
+            : '❌ **AI system has been DISABLED**\n\n• AI will not respond in tickets\n• Existing conversation memory is preserved\n• Can be re-enabled anytime'
+        )
+        .setColor(enabled ? '#57F287' : '#ED4245')
+        .setFooter({ text: `Changed by ${interaction.user.tag}` })
+        .setTimestamp();
 
-      if (success) {
-        const embed = new EmbedBuilder()
-          .setTitle('🤖 AI System Updated')
-          .setDescription(
-            enabled 
-              ? '✅ **AI system has been ENABLED**\n\n• Users can now use `/ai` to chat with the AI\n• AI will auto-respond in ticket channels\n• Conversation history is saved to memory'
-              : '❌ **AI system has been DISABLED**\n\n• `/ai` command will not work\n• AI will not respond in tickets\n• Existing memory is preserved'
-          )
-          .setColor(enabled ? '#57F287' : '#ED4245')
-          .setFooter({ text: `Changed by ${interaction.user.tag}` })
-          .setTimestamp();
-
-        await interaction.editReply({ embeds: [embed] });
-      } else {
-        await interaction.editReply({
-          content: '❌ Failed to update AI system. Please try again.'
-        });
-      }
+      await interaction.editReply({ embeds: [embed] });
     } catch (error) {
       console.error('Toggle AI command error:', error);
       await interaction.editReply({

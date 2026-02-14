@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const aiService = require('../utils/aiService');
+const { query } = require('../utils/db');
 
 /**
  * Middleware to check if user is authenticated
@@ -29,22 +29,33 @@ function getSelectedGuild(req) {
 
 /**
  * GET /api/ai/status
- * Get AI system status and stats
+ * Get Groq AI system status and stats
  */
 router.get('/status', requireAuth, async (req, res) => {
   try {
     const guild = getSelectedGuild(req);
     if (!guild) return res.status(404).json({ error: 'No server selected' });
 
-    await aiService.initialize(guild.id);
-    const stats = await aiService.getStats(guild.id);
-    const enabled = aiService.isEnabled(guild.id);
+    // Get AI enabled status
+    const configResult = await query(
+      'SELECT config_value FROM ai_config WHERE guild_id = ? AND config_key = ?',
+      [guild.id, 'ai_enabled']
+    );
+    const enabled = configResult.length > 0 ? configResult[0].config_value === '1' : true;
+
+    // Get stats from ai_conversations table
+    const statsResult = await query(
+      'SELECT COUNT(*) as total_messages, COUNT(DISTINCT user_id) as unique_users FROM ai_conversations WHERE channel_id LIKE ?',
+      [`${guild.id}%`]
+    );
 
     res.json({
       enabled,
+      model: 'llama-3.3-70b-versatile',
+      provider: 'Groq',
       stats: {
-        totalMessages: stats.total_messages,
-        uniqueUsers: stats.unique_users
+        totalMessages: statsResult[0]?.total_messages || 0,
+        uniqueUsers: statsResult[0]?.unique_users || 0
       }
     });
   } catch (error) {
@@ -55,7 +66,7 @@ router.get('/status', requireAuth, async (req, res) => {
 
 /**
  * POST /api/ai/toggle
- * Toggle AI system on/off
+ * Toggle Groq AI system on/off
  */
 router.post('/toggle', requireAuth, async (req, res) => {
   try {
@@ -67,14 +78,12 @@ router.post('/toggle', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Invalid enabled value' });
     }
 
-    await aiService.initialize(guild.id);
-    const success = await aiService.toggle(guild.id, enabled);
+    await query(
+      'INSERT INTO ai_config (guild_id, config_key, config_value, created_at, updated_at) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE config_value = ?, updated_at = ?',
+      [guild.id, 'ai_enabled', enabled ? '1' : '0', Date.now(), Date.now(), enabled ? '1' : '0', Date.now()]
+    );
 
-    if (success) {
-      res.json({ success: true, enabled });
-    } else {
-      res.status(500).json({ error: 'Failed to toggle AI' });
-    }
+    res.json({ success: true, enabled });
   } catch (error) {
     console.error('AI toggle error:', error);
     res.status(500).json({ error: error.message });
@@ -83,7 +92,7 @@ router.post('/toggle', requireAuth, async (req, res) => {
 
 /**
  * GET /api/ai/memory
- * Get recent AI memory entries
+ * Get recent AI conversation history
  */
 router.get('/memory', requireAuth, async (req, res) => {
   try {
@@ -91,16 +100,16 @@ router.get('/memory', requireAuth, async (req, res) => {
     if (!guild) return res.status(404).json({ error: 'No server selected' });
 
     const limit = parseInt(req.query.limit) || 50;
-    const { query } = require('../utils/db');
     
     const results = await query(
-      `SELECT id, guild_id, user_id, role, content, created_at FROM ai_memory WHERE guild_id = ? ORDER BY created_at DESC LIMIT ${limit}`,
-      [guild.id]
+      `SELECT id, user_id, channel_id, role, content, created_at FROM ai_conversations WHERE channel_id LIKE ? ORDER BY created_at DESC LIMIT ${limit}`,
+      [`${guild.id}%`]
     );
 
     const memory = results.map(entry => ({
       id: entry.id,
       userId: entry.user_id,
+      channelId: entry.channel_id,
       role: entry.role,
       content: entry.content,
       timestamp: entry.created_at
@@ -115,7 +124,7 @@ router.get('/memory', requireAuth, async (req, res) => {
 
 /**
  * DELETE /api/ai/memory/:id
- * Delete a specific memory entry
+ * Delete a specific conversation entry
  */
 router.delete('/memory/:id', requireAuth, async (req, res) => {
   try {
@@ -123,9 +132,8 @@ router.delete('/memory/:id', requireAuth, async (req, res) => {
     if (!guild) return res.status(404).json({ error: 'No server selected' });
 
     const memoryId = parseInt(req.params.id);
-    const { query } = require('../utils/db');
     
-    await query('DELETE FROM ai_memory WHERE id = ? AND guild_id = ?', [memoryId, guild.id]);
+    await query('DELETE FROM ai_conversations WHERE id = ? AND channel_id LIKE ?', [memoryId, `${guild.id}%`]);
     res.json({ success: true });
   } catch (error) {
     console.error('AI memory delete error:', error);
@@ -135,7 +143,7 @@ router.delete('/memory/:id', requireAuth, async (req, res) => {
 
 /**
  * POST /api/ai/memory/clear
- * Clear all memory for a specific user
+ * Clear all conversation history for a specific user
  */
 router.post('/memory/clear', requireAuth, async (req, res) => {
   try {
@@ -147,8 +155,8 @@ router.post('/memory/clear', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Missing userId' });
     }
 
-    const success = await aiService.clearMemory(guild.id, userId);
-    res.json({ success });
+    await query('DELETE FROM ai_conversations WHERE user_id = ? AND channel_id LIKE ?', [userId, `${guild.id}%`]);
+    res.json({ success: true });
   } catch (error) {
     console.error('AI memory clear error:', error);
     res.status(500).json({ error: error.message });
@@ -157,18 +165,16 @@ router.post('/memory/clear', requireAuth, async (req, res) => {
 
 /**
  * GET /api/ai/users
- * Get list of users who have interacted with AI
+ * Get list of users who have interacted with Groq AI
  */
 router.get('/users', requireAuth, async (req, res) => {
   try {
     const guild = getSelectedGuild(req);
     if (!guild) return res.status(404).json({ error: 'No server selected' });
-
-    const { query } = require('../utils/db');
     
     const results = await query(
-      'SELECT user_id, COUNT(*) as message_count, MAX(created_at) as last_interaction FROM ai_memory WHERE guild_id = ? GROUP BY user_id ORDER BY last_interaction DESC',
-      [guild.id]
+      'SELECT user_id, COUNT(*) as message_count, MAX(created_at) as last_interaction FROM ai_conversations WHERE channel_id LIKE ? GROUP BY user_id ORDER BY last_interaction DESC',
+      [`${guild.id}%`]
     );
 
     const users = await Promise.all(results.map(async (row) => {
