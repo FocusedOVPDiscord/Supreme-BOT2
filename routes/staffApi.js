@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
 
+// Cache for member fetches to prevent rate limiting
+const memberFetchCache = new Map();
+const CACHE_DURATION = 60000; // 1 minute
+
 // Specific role IDs to include in verification
 const STAFF_ROLE_IDS = [
     '1354402446994309123', // Founder
@@ -30,8 +34,26 @@ router.get('/verification/:guildId', async (req, res) => {
         }
         console.log('[Staff API] Guild found:', guild.name);
 
-        // Fetch all members
-        await guild.members.fetch();
+        // Fetch all members with caching to prevent rate limiting
+        const now = Date.now();
+        const cacheKey = guildId;
+        const cached = memberFetchCache.get(cacheKey);
+        
+        if (!cached || (now - cached.timestamp) > CACHE_DURATION) {
+            console.log('[Staff API] Fetching members from Discord (cache miss)');
+            try {
+                await guild.members.fetch();
+                memberFetchCache.set(cacheKey, { timestamp: now });
+            } catch (fetchError) {
+                if (fetchError.code === 'RATE_LIMITED') {
+                    console.log('[Staff API] Rate limited, using cached members');
+                } else {
+                    throw fetchError;
+                }
+            }
+        } else {
+            console.log('[Staff API] Using cached members (cache hit)');
+        }
 
         // Get all staff custom info from database
         const { query } = require('../utils/db');
@@ -360,7 +382,22 @@ router.post('/embed/:guildId/update', async (req, res) => {
 async function buildStaffEmbed(guild, staffInfo) {
     const { EmbedBuilder } = require('discord.js');
     
-    await guild.members.fetch();
+    // Use cached members if available to prevent rate limiting
+    const now = Date.now();
+    const cacheKey = guild.id;
+    const cached = memberFetchCache.get(cacheKey);
+    
+    if (!cached || (now - cached.timestamp) > CACHE_DURATION) {
+        try {
+            await guild.members.fetch();
+            memberFetchCache.set(cacheKey, { timestamp: now });
+        } catch (fetchError) {
+            if (fetchError.code !== 'RATE_LIMITED') {
+                throw fetchError;
+            }
+            // If rate limited, continue with cached members
+        }
+    }
 
     const embed = new EmbedBuilder()
         .setColor('#00FF00')
