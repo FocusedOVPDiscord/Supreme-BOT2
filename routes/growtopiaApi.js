@@ -23,7 +23,7 @@ router.get('/items', async (req, res) => {
          GROUP BY gt_items.id 
          ORDER BY price_count DESC 
          LIMIT ?`,
-        [`%${search}%`, limit]
+        [`%${search}%`, limitNum]
       );
     } else {
       items = await query(
