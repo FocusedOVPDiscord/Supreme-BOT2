@@ -48,6 +48,18 @@ module.exports = {
                 // Move member to the new channel
                 await member.voice.setChannel(voiceChannel);
                 
+                // Ensure owner permissions are explicitly set and persist
+                await voiceChannel.permissionOverwrites.edit(member.id, {
+                    [PermissionFlagsBits.Connect]: true,
+                    [PermissionFlagsBits.Speak]: true,
+                    [PermissionFlagsBits.Stream]: true,
+                    [PermissionFlagsBits.MuteMembers]: true,
+                    [PermissionFlagsBits.DeafenMembers]: true,
+                    [PermissionFlagsBits.MoveMembers]: true,
+                    [PermissionFlagsBits.ManageChannels]: true,
+                    [PermissionFlagsBits.ViewChannel]: true
+                });
+                
                 // Track the channel and owner
                 activeVoiceChannels.set(member.id, { channelId: voiceChannel.id, controlMessageId: null });
                 channelOwners.set(voiceChannel.id, member.id);
@@ -66,8 +78,34 @@ module.exports = {
         // to ensure we catch all empty channel scenarios
         const checkChannel = oldState.channel || newState.channel;
         
+        // Re-apply owner permissions when someone joins to ensure they persist
+        if (newState.channelId && channelOwners.has(newState.channelId)) {
+            const ownerId = channelOwners.get(newState.channelId);
+            const channel = newState.channel;
+            
+            // Re-apply owner permissions to ensure they persist
+            try {
+                await channel.permissionOverwrites.edit(ownerId, {
+                    [PermissionFlagsBits.Connect]: true,
+                    [PermissionFlagsBits.Speak]: true,
+                    [PermissionFlagsBits.Stream]: true,
+                    [PermissionFlagsBits.MuteMembers]: true,
+                    [PermissionFlagsBits.DeafenMembers]: true,
+                    [PermissionFlagsBits.MoveMembers]: true,
+                    [PermissionFlagsBits.ManageChannels]: true,
+                    [PermissionFlagsBits.ViewChannel]: true
+                });
+                console.log(`[VOICE] Re-applied owner permissions for ${ownerId} in ${channel.name}`);
+            } catch (error) {
+                console.error('[VOICE] Error re-applying owner permissions:', error);
+            }
+        }
+        
         // Check if this is a tracked temporary voice channel (instead of relying on name pattern)
         if (checkChannel && channelOwners.has(checkChannel.id)) {
+            // Add a small delay to ensure Discord has updated the member list
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
             // Re-fetch the channel to get the most up-to-date member count
             const channel = await guild.channels.fetch(checkChannel.id).catch(() => null);
             
