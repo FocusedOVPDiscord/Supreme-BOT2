@@ -145,6 +145,10 @@ try {
             const { migrateStaffInfo } = require('./migrations/add_staff_info');
             await migrateStaffInfo();
             
+            // Fix ai_config table schema
+            const { fixAiConfig } = require('./migrations/fix_ai_config');
+            await fixAiConfig();
+            
 
         } catch (dbErr) {
             console.error('❌ [STARTUP] TiDB Schema initialization failed:', dbErr);
