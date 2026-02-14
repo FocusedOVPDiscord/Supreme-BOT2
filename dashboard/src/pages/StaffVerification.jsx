@@ -246,18 +246,18 @@ export default function StaffVerification() {
                                                 />
 
                                                 {/* Member Info */}
-                                                <div className="flex-1 space-y-2 text-center md:text-left">
+                                                <div className="flex-1 space-y-1 text-center md:text-left">
                                                     <div>
-                                                        <span className="text-gray-400 text-sm">Name:</span>
-                                                        <span className="ml-2 font-bold text-lg">{member.tag}</span>
+                                                        <span className="text-white font-bold">Name:</span>
+                                                        <span className="ml-1">@{member.username}</span>
                                                     </div>
                                                     <div>
-                                                        <span className="text-gray-400 text-sm">User ID:</span>
-                                                        <span className="ml-2 font-mono text-purple-400">{member.id}</span>
+                                                        <span className="text-white font-bold">User ID:</span>
+                                                        <span className="ml-1">{member.id}</span>
                                                     </div>
                                                     <div>
-                                                        <span className="text-gray-400 text-sm">Account created:</span>
-                                                        <span className="ml-2 text-blue-400">
+                                                        <span className="text-white font-bold">Account created:</span>
+                                                        <span className="ml-1">
                                                             {new Date(member.createdAt).toLocaleDateString('en-US', {
                                                                 year: 'numeric',
                                                                 month: 'short',
@@ -266,9 +266,9 @@ export default function StaffVerification() {
                                                         </span>
                                                     </div>
                                                     <div>
-                                                        <span className="text-gray-400 text-sm">Role:</span>
+                                                        <span className="text-white font-bold">Role:</span>
                                                         <span
-                                                            className="ml-2 font-semibold"
+                                                            className="ml-1"
                                                             style={{ color: role.color !== '#000000' ? role.color : '#ffffff' }}
                                                         >
                                                             {role.name}
@@ -276,14 +276,14 @@ export default function StaffVerification() {
                                                     </div>
                                                     {member.mainEpic && (
                                                         <div>
-                                                            <span className="text-gray-400 text-sm">Main Epic:</span>
-                                                            <span className="ml-2 text-green-400">{member.mainEpic}</span>
+                                                            <span className="text-white font-bold">Main Epic:</span>
+                                                            <span className="ml-1">{member.mainEpic}</span>
                                                         </div>
                                                     )}
                                                     {member.additionalMM && (
                                                         <div>
-                                                            <span className="text-gray-400 text-sm">Additional MM:</span>
-                                                            <span className="ml-2 text-yellow-400">{member.additionalMM}</span>
+                                                            <span className="text-white font-bold">Additional MM:</span>
+                                                            <span className="ml-1">{member.additionalMM}</span>
                                                         </div>
                                                     )}
                                                 </div>
@@ -317,7 +317,7 @@ export default function StaffVerification() {
                     <div className="bg-gray-800 rounded-lg p-6 max-w-lg w-full border border-purple-500">
                         <h2 className="text-2xl font-bold mb-4">Edit Staff Info</h2>
                         <p className="text-gray-400 mb-6">
-                            Editing: <span className="text-white font-bold">{editingMember.tag}</span>
+                            Editing: <span className="text-white font-bold">@{editingMember.username}</span>
                         </p>
 
                         <div className="space-y-4">
