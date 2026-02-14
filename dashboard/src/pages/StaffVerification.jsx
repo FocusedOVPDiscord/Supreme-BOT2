@@ -8,6 +8,10 @@ export default function StaffVerification() {
     const [data, setData] = useState(null);
     const [excludedRoles, setExcludedRoles] = useState(['member', 'verified', 'everyone']);
     const [customExclude, setCustomExclude] = useState('');
+    const [editingMember, setEditingMember] = useState(null);
+    const [editForm, setEditForm] = useState({ mainEpic: '', additionalMM: '', customNotes: '' });
+    const [saving, setSaving] = useState(false);
+    const [updating, setUpdating] = useState(false);
 
     useEffect(() => {
         fetchStaffData();
@@ -44,6 +48,75 @@ export default function StaffVerification() {
     const isRoleExcluded = (roleName) => {
         const lowerName = roleName.toLowerCase();
         return excludedRoles.some(excluded => lowerName.includes(excluded));
+    };
+
+    const openEditModal = (member) => {
+        setEditingMember(member);
+        setEditForm({
+            mainEpic: member.mainEpic || '',
+            additionalMM: member.additionalMM || '',
+            customNotes: member.customNotes || ''
+        });
+    };
+
+    const closeEditModal = () => {
+        setEditingMember(null);
+        setEditForm({ mainEpic: '', additionalMM: '', customNotes: '' });
+    };
+
+    const saveStaffInfo = async () => {
+        if (!editingMember) return;
+
+        try {
+            setSaving(true);
+            const response = await fetch(`/api/staff/info/${guildId}/${editingMember.id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(editForm)
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to save staff info');
+            }
+
+            // Refresh data
+            await fetchStaffData();
+            closeEditModal();
+            
+            // Show success message
+            alert('✅ Staff info saved successfully!');
+
+        } catch (err) {
+            alert('❌ Error: ' + err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const updateAllEmbeds = async () => {
+        if (!confirm('This will update all Discord verification embeds for this server. Continue?')) {
+            return;
+        }
+
+        try {
+            setUpdating(true);
+            const response = await fetch(`/api/staff/embed/${guildId}/update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to update embeds');
+            }
+
+            const result = await response.json();
+            alert('✅ ' + result.message);
+
+        } catch (err) {
+            alert('❌ Error: ' + err.message);
+        } finally {
+            setUpdating(false);
+        }
     };
 
     const filteredStaff = data?.staffByRole.filter(item => !isRoleExcluded(item.role.name)) || [];
@@ -115,6 +188,22 @@ export default function StaffVerification() {
                                 </div>
                             </div>
                         </div>
+                        <button
+                            onClick={updateAllEmbeds}
+                            disabled={updating}
+                            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 px-6 py-3 rounded-lg font-semibold transition flex items-center gap-2"
+                        >
+                            {updating ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                    Updating...
+                                </>
+                            ) : (
+                                <>
+                                    🔄 Update Discord Embeds
+                                </>
+                            )}
+                        </button>
                     </div>
                 </div>
 
@@ -232,7 +321,27 @@ export default function StaffVerification() {
                                                             {role.name}
                                                         </span>
                                                     </div>
+                                                    {member.mainEpic && (
+                                                        <div>
+                                                            <span className="text-gray-400 text-sm">Main Epic:</span>
+                                                            <span className="ml-2 text-green-400">{member.mainEpic}</span>
+                                                        </div>
+                                                    )}
+                                                    {member.additionalMM && (
+                                                        <div>
+                                                            <span className="text-gray-400 text-sm">Additional MM:</span>
+                                                            <span className="ml-2 text-yellow-400">{member.additionalMM}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
+
+                                                {/* Edit Button */}
+                                                <button
+                                                    onClick={() => openEditModal(member)}
+                                                    className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-semibold transition h-fit"
+                                                >
+                                                    ✏️ Edit
+                                                </button>
                                             </div>
                                         </div>
                                     ))}
@@ -248,6 +357,70 @@ export default function StaffVerification() {
                     <p className="mt-2">Only what is listed on this page is considered official.</p>
                 </div>
             </div>
+
+            {/* Edit Modal */}
+            {editingMember && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                    <div className="bg-gray-800 rounded-lg p-6 max-w-lg w-full border border-purple-500">
+                        <h2 className="text-2xl font-bold mb-4">Edit Staff Info</h2>
+                        <p className="text-gray-400 mb-6">
+                            Editing: <span className="text-white font-bold">{editingMember.tag}</span>
+                        </p>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-semibold mb-2">Main Epic (Game Username)</label>
+                                <input
+                                    type="text"
+                                    value={editForm.mainEpic}
+                                    onChange={(e) => setEditForm({ ...editForm, mainEpic: e.target.value })}
+                                    placeholder="e.g., Pipi clappy"
+                                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-semibold mb-2">Additional MM (Alternate Accounts)</label>
+                                <input
+                                    type="text"
+                                    value={editForm.additionalMM}
+                                    onChange={(e) => setEditForm({ ...editForm, additionalMM: e.target.value })}
+                                    placeholder="e.g., clappyStorage8"
+                                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-semibold mb-2">Custom Notes (Optional)</label>
+                                <textarea
+                                    value={editForm.customNotes}
+                                    onChange={(e) => setEditForm({ ...editForm, customNotes: e.target.value })}
+                                    placeholder="Any additional information..."
+                                    rows="3"
+                                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={saveStaffInfo}
+                                disabled={saving}
+                                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition"
+                            >
+                                {saving ? 'Saving...' : '💾 Save'}
+                            </button>
+                            <button
+                                onClick={closeEditModal}
+                                disabled={saving}
+                                className="flex-1 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-700 text-white px-6 py-3 rounded-lg font-semibold transition"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

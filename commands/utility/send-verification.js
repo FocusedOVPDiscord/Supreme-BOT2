@@ -38,6 +38,22 @@ module.exports = {
                 `Only what is listed in this embed is considered official.`;
             const serverInfo = interaction.options.getString('server_info');
 
+            // Get staff custom info from database
+            const { query } = require('../../utils/db');
+            const staffInfoData = await query(
+                'SELECT * FROM staff_info WHERE guild_id = ?',
+                [interaction.guild.id]
+            );
+
+            const staffInfo = {};
+            staffInfoData.forEach(row => {
+                staffInfo[row.user_id] = {
+                    mainEpic: row.main_epic,
+                    additionalMM: row.additional_mm,
+                    customNotes: row.custom_notes
+                };
+            });
+
             // Build the embed
             const embed = new EmbedBuilder()
                 .setColor('#00FF00')
@@ -93,11 +109,22 @@ module.exports = {
 
                 for (const member of members.values()) {
                     const accountCreated = `<t:${Math.floor(member.user.createdTimestamp / 1000)}:D>`;
-                    const memberInfo = 
+                    const info = staffInfo[member.user.id] || {};
+                    
+                    let memberInfo = 
                         `**Name:** ${member.user.tag}\n` +
                         `**User ID:** ${member.user.id}\n` +
                         `**Account created:** ${accountCreated}\n` +
-                        `**Role:** ${role}\n\n`;
+                        `**Role:** ${role}`;
+                    
+                    if (info.mainEpic) {
+                        memberInfo += `\n**Main Epic:** ${info.mainEpic}`;
+                    }
+                    if (info.additionalMM) {
+                        memberInfo += `\n**Additional MM:** ${info.additionalMM}`;
+                    }
+                    
+                    memberInfo += '\n\n';
 
                     // Check if adding this member would exceed field value limit (1024 chars)
                     if ((memberList + memberInfo).length > 1024) {
@@ -128,7 +155,18 @@ module.exports = {
             }
 
             // Send the embed
-            await targetChannel.send({ embeds: [embed] });
+            const sentMessage = await targetChannel.send({ embeds: [embed] });
+
+            // Save embed info to database for auto-updates
+            try {
+                await query(
+                    `INSERT INTO staff_embeds (guild_id, channel_id, message_id, created_at) 
+                     VALUES (?, ?, ?, ?)`,
+                    [interaction.guild.id, targetChannel.id, sentMessage.id, Date.now()]
+                );
+            } catch (dbErr) {
+                console.error('Failed to save embed info:', dbErr);
+            }
 
             await interaction.editReply({
                 content: `✅ Verification embed sent successfully to ${targetChannel}!`,

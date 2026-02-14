@@ -117,6 +117,10 @@ try {
             
             // Run migration to add missing columns if table already existed
             await fixDatabase();
+            
+            // Run staff info migration
+            const { migrateStaffInfo } = require('./migrations/add_staff_info');
+            await migrateStaffInfo();
         } catch (dbErr) {
             console.error('❌ [STARTUP] TiDB Schema initialization failed:', dbErr);
         }

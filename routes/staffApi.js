@@ -31,6 +31,22 @@ router.get('/verification/:guildId', async (req, res) => {
                 memberCount: role.members.size
             }));
 
+        // Get all staff custom info from database
+        const { query } = require('../utils/db');
+        const staffInfoData = await query(
+            'SELECT * FROM staff_info WHERE guild_id = ?',
+            [guildId]
+        );
+
+        const staffInfoMap = {};
+        staffInfoData.forEach(row => {
+            staffInfoMap[row.user_id] = {
+                mainEpic: row.main_epic,
+                additionalMM: row.additional_mm,
+                customNotes: row.custom_notes
+            };
+        });
+
         // Get staff members organized by role
         const staffByRole = [];
 
@@ -41,23 +57,29 @@ router.get('/verification/:guildId', async (req, res) => {
             
             const members = role.members
                 .filter(member => !member.user.bot)
-                .map(member => ({
-                    id: member.user.id,
-                    username: member.user.username,
-                    discriminator: member.user.discriminator,
-                    tag: member.user.tag,
-                    avatar: member.user.displayAvatarURL({ dynamic: true, size: 128 }),
-                    createdAt: member.user.createdTimestamp,
-                    joinedAt: member.joinedTimestamp,
-                    roles: member.roles.cache
-                        .filter(r => r.name !== '@everyone')
-                        .sort((a, b) => b.position - a.position)
-                        .map(r => ({
-                            id: r.id,
-                            name: r.name,
-                            color: r.hexColor
-                        }))
-                }))
+                .map(member => {
+                    const customInfo = staffInfoMap[member.user.id] || {};
+                    return {
+                        id: member.user.id,
+                        username: member.user.username,
+                        discriminator: member.user.discriminator,
+                        tag: member.user.tag,
+                        avatar: member.user.displayAvatarURL({ dynamic: true, size: 128 }),
+                        createdAt: member.user.createdTimestamp,
+                        joinedAt: member.joinedTimestamp,
+                        mainEpic: customInfo.mainEpic,
+                        additionalMM: customInfo.additionalMM,
+                        customNotes: customInfo.customNotes,
+                        roles: member.roles.cache
+                            .filter(r => r.name !== '@everyone')
+                            .sort((a, b) => b.position - a.position)
+                            .map(r => ({
+                                id: r.id,
+                                name: r.name,
+                                color: r.hexColor
+                            }))
+                    };
+                })
                 .sort((a, b) => a.username.localeCompare(b.username));
 
             if (members.length > 0) {
@@ -137,6 +159,282 @@ function getRoleEmoji(roleName) {
     }
 
     return '📌';
+}
+
+// Update staff member custom info
+router.post('/info/:guildId/:userId', async (req, res) => {
+    try {
+        const { guildId, userId } = req.params;
+        const { mainEpic, additionalMM, customNotes } = req.body;
+        const client = req.app.get('client');
+
+        if (!client) {
+            return res.status(500).json({ error: 'Bot client not available' });
+        }
+
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) {
+            return res.status(404).json({ error: 'Guild not found' });
+        }
+
+        // Verify user is a member of the guild
+        const member = await guild.members.fetch(userId).catch(() => null);
+        if (!member) {
+            return res.status(404).json({ error: 'Member not found' });
+        }
+
+        const { query } = require('../utils/db');
+        
+        // Insert or update staff info
+        await query(
+            `INSERT INTO staff_info (guild_id, user_id, main_epic, additional_mm, custom_notes, updated_at) 
+             VALUES (?, ?, ?, ?, ?, ?) 
+             ON DUPLICATE KEY UPDATE 
+             main_epic = VALUES(main_epic), 
+             additional_mm = VALUES(additional_mm), 
+             custom_notes = VALUES(custom_notes), 
+             updated_at = VALUES(updated_at)`,
+            [guildId, userId, mainEpic || null, additionalMM || null, customNotes || null, Date.now()]
+        );
+
+        res.json({ success: true, message: 'Staff info updated successfully' });
+
+    } catch (error) {
+        console.error('Error updating staff info:', error);
+        res.status(500).json({ error: 'Failed to update staff info' });
+    }
+});
+
+// Get staff member custom info
+router.get('/info/:guildId/:userId', async (req, res) => {
+    try {
+        const { guildId, userId } = req.params;
+        const { query } = require('../utils/db');
+        
+        const result = await query(
+            'SELECT * FROM staff_info WHERE guild_id = ? AND user_id = ?',
+            [guildId, userId]
+        );
+
+        if (result.length === 0) {
+            return res.json({ mainEpic: null, additionalMM: null, customNotes: null });
+        }
+
+        res.json({
+            mainEpic: result[0].main_epic,
+            additionalMM: result[0].additional_mm,
+            customNotes: result[0].custom_notes
+        });
+
+    } catch (error) {
+        console.error('Error fetching staff info:', error);
+        res.status(500).json({ error: 'Failed to fetch staff info' });
+    }
+});
+
+// Get all staff info for a guild
+router.get('/info/:guildId', async (req, res) => {
+    try {
+        const { guildId } = req.params;
+        const { query } = require('../utils/db');
+        
+        const result = await query(
+            'SELECT * FROM staff_info WHERE guild_id = ?',
+            [guildId]
+        );
+
+        const staffInfo = {};
+        result.forEach(row => {
+            staffInfo[row.user_id] = {
+                mainEpic: row.main_epic,
+                additionalMM: row.additional_mm,
+                customNotes: row.custom_notes
+            };
+        });
+
+        res.json(staffInfo);
+
+    } catch (error) {
+        console.error('Error fetching all staff info:', error);
+        res.status(500).json({ error: 'Failed to fetch staff info' });
+    }
+});
+
+// Save embed message ID for auto-update
+router.post('/embed/:guildId', async (req, res) => {
+    try {
+        const { guildId } = req.params;
+        const { channelId, messageId } = req.body;
+        const { query } = require('../utils/db');
+        
+        await query(
+            `INSERT INTO staff_embeds (guild_id, channel_id, message_id, created_at) 
+             VALUES (?, ?, ?, ?)`,
+            [guildId, channelId, messageId, Date.now()]
+        );
+
+        res.json({ success: true });
+
+    } catch (error) {
+        console.error('Error saving embed info:', error);
+        res.status(500).json({ error: 'Failed to save embed info' });
+    }
+});
+
+// Update all embeds for a guild
+router.post('/embed/:guildId/update', async (req, res) => {
+    try {
+        const { guildId } = req.params;
+        const client = req.app.get('client');
+        const { query } = require('../utils/db');
+
+        if (!client) {
+            return res.status(500).json({ error: 'Bot client not available' });
+        }
+
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) {
+            return res.status(404).json({ error: 'Guild not found' });
+        }
+
+        // Get all saved embeds for this guild
+        const embeds = await query(
+            'SELECT * FROM staff_embeds WHERE guild_id = ?',
+            [guildId]
+        );
+
+        if (embeds.length === 0) {
+            return res.json({ success: true, message: 'No embeds to update' });
+        }
+
+        // Get staff info
+        const staffInfoData = await query(
+            'SELECT * FROM staff_info WHERE guild_id = ?',
+            [guildId]
+        );
+
+        const staffInfo = {};
+        staffInfoData.forEach(row => {
+            staffInfo[row.user_id] = {
+                mainEpic: row.main_epic,
+                additionalMM: row.additional_mm,
+                customNotes: row.custom_notes
+            };
+        });
+
+        // Update each embed
+        const { EmbedBuilder } = require('discord.js');
+        let updatedCount = 0;
+
+        for (const embedData of embeds) {
+            try {
+                const channel = await guild.channels.fetch(embedData.channel_id).catch(() => null);
+                if (!channel) continue;
+
+                const message = await channel.messages.fetch(embedData.message_id).catch(() => null);
+                if (!message) continue;
+
+                // Rebuild the embed with updated info
+                const embed = await buildStaffEmbed(guild, staffInfo);
+                await message.edit({ embeds: [embed] });
+                updatedCount++;
+
+            } catch (err) {
+                console.error('Error updating embed:', err);
+            }
+        }
+
+        res.json({ success: true, message: `Updated ${updatedCount} embed(s)` });
+
+    } catch (error) {
+        console.error('Error updating embeds:', error);
+        res.status(500).json({ error: 'Failed to update embeds' });
+    }
+});
+
+// Helper function to build staff embed
+async function buildStaffEmbed(guild, staffInfo) {
+    const { EmbedBuilder } = require('discord.js');
+    
+    await guild.members.fetch();
+    const roleHierarchy = guild.roles.cache
+        .filter(role => role.name !== '@everyone')
+        .sort((a, b) => b.position - a.position);
+
+    const embed = new EmbedBuilder()
+        .setColor('#00FF00')
+        .setTitle(`✅ ${guild.name} Officials`)
+        .setDescription(
+            `Welcome to the **only official verification hub** of ${guild.name}.\n` +
+            `Before you trust any server, account, or tag, always check this message first.\n\n` +
+            `Only what is listed in this embed is considered official.`
+        )
+        .setTimestamp()
+        .setFooter({ text: `${guild.name} Verification System` });
+
+    embed.addFields({
+        name: '🌐 Official Server Information',
+        value: `**Server Name:** ${guild.name}\n` +
+               `**Server ID:** ${guild.id}\n` +
+               `**Created:** <t:${Math.floor(guild.createdTimestamp / 1000)}:D>`,
+        inline: false
+    });
+
+    const staffByRole = new Map();
+    for (const role of roleHierarchy.values()) {
+        const membersWithRole = role.members
+            .filter(member => !member.user.bot)
+            .sort((a, b) => a.user.username.localeCompare(b.user.username));
+
+        if (membersWithRole.size > 0) {
+            staffByRole.set(role, membersWithRole);
+        }
+    }
+
+    let fieldCount = 1;
+    for (const [role, members] of staffByRole) {
+        if (fieldCount >= 25) break;
+
+        const roleEmoji = getRoleEmoji(role.name);
+        let memberList = '';
+
+        for (const member of members.values()) {
+            const accountCreated = `<t:${Math.floor(member.user.createdTimestamp / 1000)}:D>`;
+            const info = staffInfo[member.user.id] || {};
+            
+            let memberInfo = 
+                `**Name:** ${member.user.tag}\n` +
+                `**User ID:** ${member.user.id}\n` +
+                `**Account created:** ${accountCreated}\n` +
+                `**Role:** ${role}`;
+            
+            if (info.mainEpic) {
+                memberInfo += `\n**Main Epic:** ${info.mainEpic}`;
+            }
+            if (info.additionalMM) {
+                memberInfo += `\n**Additional MM:** ${info.additionalMM}`;
+            }
+            
+            memberInfo += '\n\n';
+
+            if ((memberList + memberInfo).length > 1024) {
+                break;
+            }
+
+            memberList += memberInfo;
+        }
+
+        if (memberList) {
+            embed.addFields({
+                name: `${roleEmoji} ${role.name} – ${members.size}`,
+                value: memberList || '...',
+                inline: false
+            });
+            fieldCount++;
+        }
+    }
+
+    return embed;
 }
 
 module.exports = router;
