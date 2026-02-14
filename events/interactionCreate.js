@@ -171,7 +171,13 @@ module.exports = {
                 
                 const denyEmbed = new EmbedBuilder()
                     .setTitle('MM Application Denied')
-                    .setDescription(`We regret to inform you that your MM application has been **Denied**.\n\n**Reason:** ${reason}`)
+                    .setDescription(
+                        `We regret to inform you that your MM application has been **Denied**.\n\n` +
+                        `This does not mean you are a bad trader – it simply means that at this time you do not fully meet the requirements for the **MM Trainee** role or we are looking for a different profile.\n\n` +
+                        `You are still welcome to trade using Supreme MM and to stay in the community. You may apply again in the future if your situation or experience changes.\n\n` +
+                        `Thank you for your interest and for respecting the decision.\n\n` +
+                        `**Message from reviewer:**\n\`\`\`\n${reason}\n\`\`\``
+                    )
                     .setColor(0xFF0000)
                     .setTimestamp();
 
