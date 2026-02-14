@@ -25,7 +25,7 @@ module.exports = {
     try {
       // Check if item exists
       const existingItems = await query(
-        'SELECT id, name, rarity FROM gt_items WHERE LOWER(name) = ?',
+        'SELECT id, item_name, rarity FROM gt_items WHERE LOWER(item_name) = ?',
         [itemName]
       );
 
@@ -36,8 +36,8 @@ module.exports = {
       if (existingItems.length === 0) {
         // Auto-create item with "common" rarity and generic description
         const insertResult = await query(
-          'INSERT INTO gt_items (name, description, rarity) VALUES (?, ?, ?)',
-          [itemName, `Growtopia item: ${itemName}`, 'common']
+          'INSERT INTO gt_items (item_name, description, rarity, created_at, created_by) VALUES (?, ?, ?, ?, ?)',
+          [itemName, `Growtopia item: ${itemName}`, 'common', Date.now(), userId]
         );
         itemId = insertResult.insertId;
         itemRarity = 'common';
