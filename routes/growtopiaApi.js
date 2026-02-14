@@ -9,8 +9,7 @@ const PriceAnalyzer = require('../utils/priceAnalyzer');
  */
 router.get('/items', async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit, 10) || 50;
-    const limitNum = Number(limit);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 100); // Clamp between 1-100
     const search = req.query.search || '';
 
     let items;
@@ -22,8 +21,8 @@ router.get('/items', async (req, res) => {
          WHERE gt_items.item_name LIKE ? 
          GROUP BY gt_items.id 
          ORDER BY price_count DESC 
-         LIMIT ?`,
-        [`%${search}%`, limitNum]
+         LIMIT ${limit}`,
+        [`%${search}%`]
       );
     } else {
       items = await query(
@@ -32,8 +31,7 @@ router.get('/items', async (req, res) => {
          LEFT JOIN gt_price_history ON gt_items.id = gt_price_history.item_id 
          GROUP BY gt_items.id 
          ORDER BY price_count DESC 
-         LIMIT ?`,
-        [limitNum]
+         LIMIT ${limit}`
       );
     }
 
@@ -119,19 +117,16 @@ router.get('/item/:id/analysis', async (req, res) => {
 router.get('/leaderboard', async (req, res) => {
   try {
     const type = req.query.type || 'all';
-    const limit = parseInt(req.query.limit, 10) || 10;
-    const limitNum = Number(limit);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50); // Clamp between 1-50
 
     let leaderboard;
     if (type === 'monthly') {
       leaderboard = await query(
-        'SELECT user_id, username, total_prices_added, monthly_points FROM gt_admin_stats ORDER BY monthly_points DESC LIMIT ?',
-        [limitNum]
+        `SELECT user_id, username, total_prices_added, monthly_points FROM gt_admin_stats ORDER BY monthly_points DESC LIMIT ${limit}`
       );
     } else {
       leaderboard = await query(
-        'SELECT user_id, username, total_prices_added, total_points FROM gt_admin_stats ORDER BY total_points DESC LIMIT ?',
-        [limitNum]
+        `SELECT user_id, username, total_prices_added, total_points FROM gt_admin_stats ORDER BY total_points DESC LIMIT ${limit}`
       );
     }
 
