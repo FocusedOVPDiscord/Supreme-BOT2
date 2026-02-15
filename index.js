@@ -521,14 +521,14 @@ console.log('🔑 [LOGIN] Attempting to login to Discord...');
 
 // Add timeout to detect hanging login
 const loginTimeout = setTimeout(() => {
-    console.error('⏰ [TIMEOUT] Discord login is taking too long (30s). This usually means:');
+    console.error('⏰ [TIMEOUT] Discord login is taking too long (60s). This usually means:');
     console.error('   1. Token is invalid or bot is disabled in Discord Developer Portal');
     console.error('   2. Network/firewall blocking Discord gateway connection');
     console.error('   3. Discord API is down');
     console.error('🔍 [DEBUG] Token starts with:', TOKEN.substring(0, 20) + '...');
     console.error('🔍 [DEBUG] Token ends with:', '...' + TOKEN.substring(TOKEN.length - 10));
     process.exit(1);
-}, 30000);
+}, 60000);
 
 client.login(TOKEN)
     .then(() => {
