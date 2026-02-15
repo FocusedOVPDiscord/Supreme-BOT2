@@ -10,7 +10,7 @@ const { saveTranscriptToDashboard, formatMessagesForDashboard } = require('../ut
 // Configuration
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '1459183931005075701';
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '2HFpZf8paKaxZnSfuhbAFr4nx8hn-ymg';
-const REDIRECT_URI = process.env.REDIRECT_URI || 'https://breakable-tiger-supremebot1-d8a3b39c.koyeb.app/api/dashboard/auth/callback';
+const REDIRECT_URI = process.env.REDIRECT_URI || 'https://breakable-tiger-supremebot1-d8a3b39c.koyeb.app/dashboard/login';
 const BOT_INVITE_URL = `https://discord.com/api/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&permissions=8&scope=bot%20applications.commands`;
 
 // Audit log action name mapping
@@ -133,14 +133,14 @@ router.get('/auth/url', (req, res) => {
 });
 
 /**
- * GET /api/dashboard/auth/callback
- * OAuth2 callback endpoint
+ * POST /api/dashboard/auth/callback
+ * OAuth2 callback endpoint - processes the code from Discord
  */
-router.get('/auth/callback', async (req, res) => {
+router.post('/auth/callback', async (req, res) => {
     try {
-        const { code } = req.query;
+        const { code } = req.body;
         if (!code) {
-            return res.redirect('/dashboard?error=no_code');
+            return res.status(400).json({ error: 'No authorization code provided' });
         }
 
         // Exchange code for access token
@@ -181,10 +181,10 @@ router.get('/auth/callback', async (req, res) => {
             });
         });
 
-        res.redirect('/dashboard/servers');
+        res.json({ success: true, user: req.session.user });
     } catch (error) {
         console.error('OAuth callback error:', error.response?.data || error.message);
-        res.redirect('/dashboard?error=auth_failed');
+        res.status(500).json({ error: 'Authentication failed', details: error.response?.data || error.message });
     }
 });
 
