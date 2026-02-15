@@ -263,13 +263,23 @@ const client = new Client({
     // WebSocket options for better connection reliability
     ws: {
         large_threshold: 50,
-        compress: true
+        compress: true,
+        properties: {
+            browser: 'Discord Client'
+        }
     },
     // Retry options
     rest: {
-        timeout: 15000,
-        retries: 3
+        timeout: 30000,
+        retries: 5,
+        globalRequestsPerSecond: 50
     },
+    // Reduce initial cache load
+    makeCache: require('@discordjs/collection').Options.cacheWithLimits({
+        MessageManager: 0, // Don't cache messages on startup
+        GuildMemberManager: 100, // Limit member cache
+        UserManager: 100 // Limit user cache
+    }),
     // Memory Management: Clear caches periodically
     sweepers: {
         messages: {
@@ -527,40 +537,43 @@ client.on(Events.InviteDelete, invite => {
 /* ===============================
    LOGIN
 ================================ */
-// Login with retry logic
-async function loginWithRetry(maxRetries = 3) {
+// Login with retry logic - will be called after server starts
+async function loginWithRetry(maxRetries = 5) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         console.log(`🔑 [LOGIN] Attempt ${attempt}/${maxRetries} - Connecting to Discord...`);
         
         try {
-            // Set timeout for this attempt
+            // Set timeout for this attempt (120 seconds)
             const loginPromise = client.login(TOKEN);
             const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Login timeout')), 90000)
+                setTimeout(() => reject(new Error('Login timeout')), 120000)
             );
             
             await Promise.race([loginPromise, timeoutPromise]);
             console.log('✅ [LOGIN] Successfully authenticated with Discord');
-            return; // Success!
+            return true; // Success!
             
         } catch (err) {
             console.error(`❌ [LOGIN] Attempt ${attempt} failed:`, err.message);
             
             if (attempt < maxRetries) {
-                const waitTime = attempt * 5000; // 5s, 10s, 15s
+                const waitTime = Math.min(attempt * 3000, 15000); // 3s, 6s, 9s, 12s, 15s max
                 console.log(`⏳ [LOGIN] Waiting ${waitTime/1000}s before retry...`);
                 await new Promise(resolve => setTimeout(resolve, waitTime));
             } else {
-                console.error('❌ [FATAL] All login attempts failed');
+                console.error('❌ [FATAL] All login attempts failed after ${maxRetries} tries');
                 console.error('🔍 [DEBUG] Token starts with:', TOKEN.substring(0, 20) + '...');
                 console.error('🔍 [DEBUG] Token ends with:', '...' + TOKEN.substring(TOKEN.length - 10));
-                process.exit(1);
+                console.error('💡 [HINT] This usually means Discord API is slow or unreachable from this region');
+                // Don't exit - let the bot keep trying in background
+                console.log('🔄 [RECOVERY] Bot will continue running and retry connection...');
+                // Retry indefinitely in background
+                setTimeout(() => loginWithRetry(maxRetries), 60000); // Retry after 1 minute
+                return false;
             }
         }
     }
 }
-
-loginWithRetry();
 
 /* ===============================
    EXPRESS SERVER & KEEP-ALIVE
@@ -687,7 +700,7 @@ app.get('/health', (req, res) => {
     });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
     console.log(`🚀 [SERVER] Running on port ${PORT}`);
     
     const PUBLIC_URL = process.env.KOYEB_PUBLIC_URL || process.env.PUBLIC_URL;
@@ -704,4 +717,8 @@ app.listen(PORT, '0.0.0.0', () => {
     } else {
         console.log('⚠️ [KEEP-ALIVE] KOYEB_PUBLIC_URL not set. Self-ping disabled.');
     }
+    
+    // Start Discord login after server is ready
+    console.log('🎯 [STARTUP] Server ready, initiating Discord connection...');
+    await loginWithRetry();
 });
