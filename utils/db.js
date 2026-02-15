@@ -21,16 +21,36 @@ async function getPool() {
             ...dbConfig,
             waitForConnections: true,
             connectionLimit: 10,
-            queueLimit: 0
+            queueLimit: 0,
+            connectTimeout: 10000,
+            acquireTimeout: 10000,
+            timeout: 10000,
+            enableKeepAlive: true,
+            keepAliveInitialDelay: 0
+        });
+        
+        // Handle pool errors
+        pool.on('error', (err) => {
+            console.error('❌ [DB POOL ERROR]:', err);
+            if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
+                console.error('🔄 [DB] Connection lost, pool will reconnect automatically');
+            }
         });
     }
     return pool;
 }
 
 async function query(sql, params) {
-    const p = await getPool();
-    const [results] = await p.execute(sql, params);
-    return results;
+    try {
+        const p = await getPool();
+        const [results] = await p.execute(sql, params);
+        return results;
+    } catch (error) {
+        console.error('❌ [DB QUERY ERROR]:', error.message);
+        console.error('   SQL:', sql);
+        console.error('   Params:', params);
+        throw error;
+    }
 }
 
 module.exports = {

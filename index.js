@@ -28,6 +28,9 @@ process.on('uncaughtException', (err) => {
 
 process.on('unhandledRejection', (reason, promise) => {
     console.error('🔥 [FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
+    console.error('🔄 [RECOVERY] Exiting process for automatic restart...');
+    // Give time for logs to flush before exiting
+    setTimeout(() => process.exit(1), 1000);
 });
 
 /* ===============================
@@ -272,6 +275,31 @@ const client = new Client({
 
 client.invites = new Map();
 client.commands = new Collection();
+
+// Discord client error handlers
+client.on('error', (error) => {
+    console.error('❌ [DISCORD CLIENT ERROR]:', error);
+});
+
+client.on('warn', (warning) => {
+    console.warn('⚠️ [DISCORD WARNING]:', warning);
+});
+
+client.on('shardError', (error) => {
+    console.error('❌ [SHARD ERROR]:', error);
+});
+
+client.on('shardDisconnect', (event, shardId) => {
+    console.warn(`⚠️ [SHARD ${shardId}] Disconnected:`, event);
+});
+
+client.on('shardReconnecting', (shardId) => {
+    console.log(`🔄 [SHARD ${shardId}] Reconnecting...`);
+});
+
+client.on('shardResume', (shardId, replayedEvents) => {
+    console.log(`✅ [SHARD ${shardId}] Resumed, replayed ${replayedEvents} events`);
+});
 
 /* ===============================
    READY EVENT
