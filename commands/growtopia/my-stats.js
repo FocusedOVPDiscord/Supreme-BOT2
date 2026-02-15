@@ -23,7 +23,7 @@ module.exports = {
 
       // Get user's rank
       const rankResult = await query(
-        'SELECT COUNT(*) + 1 as rank FROM gt_admin_stats WHERE total_points > ?',
+        'SELECT COUNT(*) + 1 as `rank` FROM gt_admin_stats WHERE total_points > ?',
         [stats.total_points]
       );
       const rank = rankResult[0].rank;
