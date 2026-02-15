@@ -260,6 +260,16 @@ const client = new Client({
         Partials.GuildMember,
         Partials.ThreadMember
     ],
+    // WebSocket options for better connection reliability
+    ws: {
+        large_threshold: 50,
+        compress: true
+    },
+    // Retry options
+    rest: {
+        timeout: 15000,
+        retries: 3
+    },
     // Memory Management: Clear caches periodically
     sweepers: {
         messages: {
@@ -517,32 +527,40 @@ client.on(Events.InviteDelete, invite => {
 /* ===============================
    LOGIN
 ================================ */
-console.log('🔑 [LOGIN] Attempting to login to Discord...');
+// Login with retry logic
+async function loginWithRetry(maxRetries = 3) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        console.log(`🔑 [LOGIN] Attempt ${attempt}/${maxRetries} - Connecting to Discord...`);
+        
+        try {
+            // Set timeout for this attempt
+            const loginPromise = client.login(TOKEN);
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Login timeout')), 90000)
+            );
+            
+            await Promise.race([loginPromise, timeoutPromise]);
+            console.log('✅ [LOGIN] Successfully authenticated with Discord');
+            return; // Success!
+            
+        } catch (err) {
+            console.error(`❌ [LOGIN] Attempt ${attempt} failed:`, err.message);
+            
+            if (attempt < maxRetries) {
+                const waitTime = attempt * 5000; // 5s, 10s, 15s
+                console.log(`⏳ [LOGIN] Waiting ${waitTime/1000}s before retry...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+            } else {
+                console.error('❌ [FATAL] All login attempts failed');
+                console.error('🔍 [DEBUG] Token starts with:', TOKEN.substring(0, 20) + '...');
+                console.error('🔍 [DEBUG] Token ends with:', '...' + TOKEN.substring(TOKEN.length - 10));
+                process.exit(1);
+            }
+        }
+    }
+}
 
-// Add timeout to detect hanging login
-const loginTimeout = setTimeout(() => {
-    console.error('⏰ [TIMEOUT] Discord login is taking too long (60s). This usually means:');
-    console.error('   1. Token is invalid or bot is disabled in Discord Developer Portal');
-    console.error('   2. Network/firewall blocking Discord gateway connection');
-    console.error('   3. Discord API is down');
-    console.error('🔍 [DEBUG] Token starts with:', TOKEN.substring(0, 20) + '...');
-    console.error('🔍 [DEBUG] Token ends with:', '...' + TOKEN.substring(TOKEN.length - 10));
-    process.exit(1);
-}, 60000);
-
-client.login(TOKEN)
-    .then(() => {
-        clearTimeout(loginTimeout);
-        console.log('✅ [LOGIN] Successfully authenticated with Discord');
-    })
-    .catch(err => {
-        clearTimeout(loginTimeout);
-        console.error('❌ [FATAL] Discord login failed:', err.message);
-        console.error('🔍 [DEBUG] Token starts with:', TOKEN.substring(0, 20) + '...');
-        console.error('🔍 [DEBUG] Token ends with:', '...' + TOKEN.substring(TOKEN.length - 10));
-        console.error('🔍 [DEBUG] Full error:', err);
-        process.exit(1);
-    });
+loginWithRetry();
 
 /* ===============================
    EXPRESS SERVER & KEEP-ALIVE
