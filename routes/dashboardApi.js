@@ -1,6 +1,6 @@
 const express = require('express');
 const axios = require('axios');
-const { EmbedBuilder, ChannelType, AuditLogEvent } = require('discord.js');
+const { EmbedBuilder, ChannelType, AuditLogEvent, PermissionFlagsBits } = require('discord.js');
 const router = express.Router();
 const storage = require('../commands/utility/storage.js');
 const inviteManager = require('../inviteManager.js');
@@ -10,8 +10,8 @@ const { saveTranscriptToDashboard, formatMessagesForDashboard } = require('../ut
 // Configuration
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '1459183931005075701';
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '2HFpZf8paKaxZnSfuhbAFr4nx8hn-ymg';
-const REDIRECT_URI = process.env.REDIRECT_URI || 'https://breakable-tiger-supremebot1-d8a3b39c.koyeb.app/dashboard/login';
-const STAFF_ROLE_IDS = ['982731220913913856', '958703198447755294', '1410661468688482314', '1457664338163667072', '1354402446994309123'];
+const REDIRECT_URI = process.env.REDIRECT_URI || 'https://breakable-tiger-supremebot1-d8a3b39c.koyeb.app/api/dashboard/auth/callback';
+const BOT_INVITE_URL = `https://discord.com/api/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&permissions=8&scope=bot%20applications.commands`;
 
 // Audit log action name mapping
 const AUDIT_ACTION_NAMES = {
@@ -47,690 +47,431 @@ const AUDIT_ACTION_NAMES = {
     [AuditLogEvent.ThreadDelete]: 'Thread Deleted',
 };
 
-// Get client IP address
-function getClientIP(req) {
-  return req.headers['x-forwarded-for']?.split(',')[0].trim() || 
-         req.headers['x-real-ip'] || 
-         req.connection.remoteAddress || 
-         req.socket.remoteAddress;
+/**
+ * Check if user has manage permissions (Administrator or Owner)
+ */
+function hasManagePermissions(permissions) {
+    // Discord permissions are returned as a string bitfield
+    const permissionBits = BigInt(permissions);
+    const adminBit = BigInt(PermissionFlagsBits.Administrator);
+    const manageGuildBit = BigInt(PermissionFlagsBits.ManageGuild);
+    
+    return (permissionBits & adminBit) === adminBit || (permissionBits & manageGuildBit) === manageGuildBit;
 }
 
-// Get selected guild or default
+/**
+ * Get selected guild
+ */
 function getSelectedGuild(req) {
-  const client = req.app.locals.client;
-  const selectedGuildId = req.session.selectedGuildId;
-  
-  if (selectedGuildId) {
-    const guild = client.guilds.cache.get(selectedGuildId);
-    if (guild) return guild;
-  }
-  
-  return client.guilds.cache.first();
+    const client = req.app.locals.client;
+    const selectedGuildId = req.session.selectedGuildId;
+    
+    if (selectedGuildId) {
+        const guild = client.guilds.cache.get(selectedGuildId);
+        if (guild) return guild;
+    }
+    
+    return null;
 }
 
 /**
  * Middleware to check if user is authenticated
  */
 const requireAuth = (req, res, next) => {
-  if (!req.session || !req.session.user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  next();
+    if (!req.session || !req.session.user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    next();
+};
+
+/**
+ * Middleware to check if user has access to selected guild
+ */
+const requireGuildAccess = async (req, res, next) => {
+    const guild = getSelectedGuild(req);
+    if (!guild) {
+        return res.status(404).json({ error: 'No server selected' });
+    }
+    
+    const userId = req.session.user.id;
+    try {
+        const member = await guild.members.fetch(userId).catch(() => null);
+        if (!member) {
+            return res.status(403).json({ error: 'You are not a member of this server' });
+        }
+        
+        // Check if user has Administrator or Manage Server permissions
+        if (!member.permissions.has(PermissionFlagsBits.Administrator) && 
+            !member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+            return res.status(403).json({ error: 'You do not have permission to manage this server' });
+        }
+        
+        next();
+    } catch (error) {
+        console.error('Guild access check error:', error);
+        res.status(500).json({ error: 'Failed to verify permissions' });
+    }
 };
 
 /**
  * GET /api/dashboard/auth/me
  */
 router.get('/auth/me', async (req, res) => {
-  if (req.session && req.session.user) {
-    return res.json(req.session.user);
-  }
-  
-  const clientIP = getClientIP(req);
-  try {
-    const results = await query('SELECT * FROM trusted_ips WHERE ip = ?', [clientIP]);
-    if (results.length > 0) {
-      const trustedUser = results[0];
-      const client = req.app.locals.client;
-      const guild = client.guilds.cache.first();
-      
-      if (guild) {
-        const member = await guild.members.fetch(trustedUser.user_id).catch(() => null);
-        if (member) {
-          const userRoles = member.roles.cache.map(role => role.id);
-          const isStaff = userRoles.some(roleId => STAFF_ROLE_IDS.includes(roleId));
-          
-          if (isStaff) {
-            req.session.user = {
-              id: trustedUser.user_id,
-              username: trustedUser.username,
-              avatar: trustedUser.avatar,
-              roles: userRoles,
-              isStaff: true
-            };
-            return res.json(req.session.user);
-          }
-        }
-      }
+    if (req.session && req.session.user) {
+        return res.json(req.session.user);
     }
-  } catch (error) {
-    console.error('Auto-login verification failed:', error);
-  }
-  
-  res.status(401).json({ error: 'Not authenticated' });
+    res.status(401).json({ error: 'Not authenticated' });
 });
 
 /**
- * POST /api/dashboard/auth/callback
+ * GET /api/dashboard/auth/url
+ * Returns the Discord OAuth2 URL
  */
-router.post('/auth/callback', async (req, res) => {
-  try {
-    const { code } = req.body;
-    if (!code) return res.status(400).json({ error: 'Missing authorization code' });
+router.get('/auth/url', (req, res) => {
+    const authUrl = `https://discord.com/api/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=identify%20guilds`;
+    res.json({ url: authUrl });
+});
 
-    const tokenResponse = await axios.post('https://discord.com/api/v10/oauth2/token', {
-      client_id: DISCORD_CLIENT_ID,
-      client_secret: DISCORD_CLIENT_SECRET,
-      grant_type: 'authorization_code',
-      code: code,
-      redirect_uri: REDIRECT_URI,
-    }, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    });
+/**
+ * GET /api/dashboard/auth/callback
+ * OAuth2 callback endpoint
+ */
+router.get('/auth/callback', async (req, res) => {
+    try {
+        const { code } = req.query;
+        if (!code) {
+            return res.redirect('/dashboard?error=no_code');
+        }
 
-    const { access_token } = tokenResponse.data;
-    const userResponse = await axios.get('https://discord.com/api/v10/users/@me', {
-      headers: { 'Authorization': `Bearer ${access_token}` },
-    });
+        // Exchange code for access token
+        const tokenResponse = await axios.post('https://discord.com/api/v10/oauth2/token', 
+            new URLSearchParams({
+                client_id: DISCORD_CLIENT_ID,
+                client_secret: DISCORD_CLIENT_SECRET,
+                grant_type: 'authorization_code',
+                code: code,
+                redirect_uri: REDIRECT_URI,
+            }), {
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            }
+        );
 
-    const discordUser = userResponse.data;
-    const client = req.app.locals.client;
-    const botGuild = client.guilds.cache.first();
-    let userRoles = [];
+        const { access_token } = tokenResponse.data;
 
-    if (botGuild) {
-      const member = await botGuild.members.fetch(discordUser.id).catch(() => null);
-      if (member) {
-        userRoles = member.roles.cache.map(role => role.id);
-      }
+        // Get user info
+        const userResponse = await axios.get('https://discord.com/api/v10/users/@me', {
+            headers: { 'Authorization': `Bearer ${access_token}` },
+        });
+
+        const discordUser = userResponse.data;
+
+        // Store user in session
+        req.session.user = {
+            id: discordUser.id,
+            username: discordUser.username,
+            discriminator: discordUser.discriminator,
+            avatar: discordUser.avatar,
+            access_token: access_token
+        };
+
+        await new Promise((resolve, reject) => {
+            req.session.save((err) => {
+                if (err) reject(err);
+                else resolve();
+            });
+        });
+
+        res.redirect('/dashboard/servers');
+    } catch (error) {
+        console.error('OAuth callback error:', error.response?.data || error.message);
+        res.redirect('/dashboard?error=auth_failed');
     }
-
-    const isStaff = userRoles.some(roleId => STAFF_ROLE_IDS.includes(roleId));
-    if (!isStaff) {
-      return res.status(403).json({ error: 'Access denied: Staff only' });
-    }
-
-    req.session.user = {
-      id: discordUser.id,
-      username: discordUser.username,
-      avatar: discordUser.avatar,
-      roles: userRoles,
-      isStaff: true
-    };
-
-    
-    const clientIP = getClientIP(req);
-    await query(
-      'INSERT INTO trusted_ips (ip, user_id, username, avatar, last_login) VALUES (?, ?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE user_id=?, username=?, avatar=?, last_login=NOW()',
-      [clientIP, discordUser.id, discordUser.username, discordUser.avatar, discordUser.id, discordUser.username, discordUser.avatar]
-    );
-    
-    res.json({ success: true, user: req.session.user });
-  } catch (error) {
-    console.error('OAuth error:', error.message);
-    res.status(500).json({ error: 'Authentication failed' });
-  }
 });
 
 /**
  * POST /api/dashboard/auth/logout
  */
-router.post('/auth/logout', async (req, res) => {
-  const clientIP = getClientIP(req);
-  if (req.body.removeTrustedIP) {
-    await query('DELETE FROM trusted_ips WHERE ip = ?', [clientIP]);
-  }
-  req.session.destroy(() => res.json({ success: true }));
+router.post('/auth/logout', (req, res) => {
+    req.session.destroy(() => res.json({ success: true }));
 });
 
 /**
  * GET /api/dashboard/guilds
+ * Returns all guilds where user has manage permissions
  */
 router.get('/guilds', requireAuth, async (req, res) => {
-  try {
-    const client = req.app.locals.client;
-    const userId = req.session.user.id;
-    const guilds = [];
-    
-    for (const [guildId, guild] of client.guilds.cache) {
-      let member = guild.members.cache.get(userId) || await guild.members.fetch(userId).catch(() => null);
-      if (member) {
-        const isStaff = member.roles.cache.some(role => STAFF_ROLE_IDS.includes(role.id));
-        if (isStaff) {
-          guilds.push({
-            id: guild.id,
-            name: guild.name,
-            icon: guild.iconURL({ size: 128 }),
-            memberCount: guild.memberCount
-          });
+    try {
+        const access_token = req.session.user.access_token;
+        
+        // Get user's guilds from Discord API
+        const guildsResponse = await axios.get('https://discord.com/api/v10/users/@me/guilds', {
+            headers: { 'Authorization': `Bearer ${access_token}` },
+        });
+
+        const userGuilds = guildsResponse.data;
+        const client = req.app.locals.client;
+        const managedGuilds = [];
+
+        for (const guild of userGuilds) {
+            // Check if user has manage permissions
+            if (hasManagePermissions(guild.permissions)) {
+                const botGuild = client.guilds.cache.get(guild.id);
+                
+                managedGuilds.push({
+                    id: guild.id,
+                    name: guild.name,
+                    icon: guild.icon ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png` : null,
+                    owner: guild.owner,
+                    botInGuild: !!botGuild,
+                    memberCount: botGuild?.memberCount || null
+                });
+            }
         }
-      }
+
+        res.json({ 
+            guilds: managedGuilds,
+            botInviteUrl: BOT_INVITE_URL
+        });
+    } catch (error) {
+        console.error('Guilds fetch error:', error.response?.data || error.message);
+        res.status(500).json({ error: 'Failed to fetch guilds' });
     }
-    res.json(guilds);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
 });
 
 /**
  * POST /api/dashboard/select-guild
  */
 router.post('/select-guild', requireAuth, async (req, res) => {
-  const { guildId } = req.body;
-  const client = req.app.locals.client;
-  const guild = client.guilds.cache.get(guildId);
-  if (!guild) return res.status(404).json({ error: 'Guild not found' });
+    try {
+        const { guildId } = req.body;
+        const client = req.app.locals.client;
+        const guild = client.guilds.cache.get(guildId);
+        
+        if (!guild) {
+            return res.status(404).json({ error: 'Bot is not in this server' });
+        }
 
-  req.session.selectedGuildId = guildId;
-  req.session.save(() => res.json({ success: true, guild: { id: guild.id, name: guild.name } }));
+        // Verify user has permissions in this guild
+        const userId = req.session.user.id;
+        const member = await guild.members.fetch(userId).catch(() => null);
+        
+        if (!member) {
+            return res.status(403).json({ error: 'You are not a member of this server' });
+        }
+        
+        if (!member.permissions.has(PermissionFlagsBits.Administrator) && 
+            !member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+            return res.status(403).json({ error: 'You do not have permission to manage this server' });
+        }
+
+        req.session.selectedGuildId = guildId;
+        await new Promise((resolve, reject) => {
+            req.session.save((err) => {
+                if (err) reject(err);
+                else resolve();
+            });
+        });
+
+        res.json({ 
+            success: true, 
+            guild: { 
+                id: guild.id, 
+                name: guild.name,
+                icon: guild.iconURL({ size: 128 })
+            } 
+        });
+    } catch (error) {
+        console.error('Select guild error:', error);
+        res.status(500).json({ error: 'Failed to select server' });
+    }
 });
 
 /**
  * GET /api/dashboard/stats
  */
-router.get('/stats', requireAuth, async (req, res) => {
-  const guild = getSelectedGuild(req);
-  if (!guild) return res.status(404).json({ error: 'No server selected' });
+router.get('/stats', requireAuth, requireGuildAccess, async (req, res) => {
+    const guild = getSelectedGuild(req);
+    if (!guild) return res.status(404).json({ error: 'No server selected' });
 
-  const activeTicketsData = storage.get(guild.id, 'active_tickets') || {};
-  const activeTicketsCount = Object.keys(activeTicketsData).length;
-  
-  // Count closed tickets from database
-  let closedTicketsCount = 0;
-  try {
-    const results = await query('SELECT COUNT(*) as count FROM transcripts WHERE guild_id = ?', [guild.id]);
-    closedTicketsCount = results[0]?.count || 0;
-  } catch (e) { /* ignore */ }
+    const activeTicketsData = storage.get(guild.id, 'active_tickets') || {};
+    const activeTicketsCount = Object.keys(activeTicketsData).length;
+    
+    // Count closed tickets from database
+    let closedTicketsCount = 0;
+    try {
+        const results = await query('SELECT COUNT(*) as count FROM transcripts WHERE guild_id = ?', [guild.id]);
+        closedTicketsCount = results[0]?.count || 0;
+    } catch (error) {
+        console.error('Error counting closed tickets:', error);
+    }
 
-  let recentTickets = Object.values(activeTicketsData)
-    .sort((a, b) => new Date(b.created) - new Date(a.created))
-    .slice(0, 5);
+    res.json({
+        guildName: guild.name,
+        guildIcon: guild.iconURL({ size: 128 }),
+        memberCount: guild.memberCount,
+        activeTickets: activeTicketsCount,
+        closedTickets: closedTicketsCount,
+        totalTickets: activeTicketsCount + closedTicketsCount
+    });
+});
 
-  res.json({
-    serverName: guild.name,
-    totalMembers: guild.memberCount,
-    onlineMembers: guild.members.cache.filter(m => m.presence?.status === 'online').size,
-    boostCount: guild.premiumSubscriptionCount || 0,
-    channels: guild.channels.cache.size,
-    roles: guild.roles.cache.size,
-    uptime: process.uptime(),
-    botStatus: 'Online',
-    activeTickets: activeTicketsCount,
-    closedTickets: closedTicketsCount,
-    recentTickets: recentTickets
-  });
+/**
+ * GET /api/dashboard/members
+ */
+router.get('/members', requireAuth, requireGuildAccess, async (req, res) => {
+    try {
+        const guild = getSelectedGuild(req);
+        if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+        await guild.members.fetch();
+        const members = guild.members.cache.map(member => ({
+            id: member.id,
+            username: member.user.username,
+            discriminator: member.user.discriminator,
+            avatar: member.user.displayAvatarURL({ size: 64 }),
+            joinedAt: member.joinedTimestamp,
+            roles: member.roles.cache.map(role => ({
+                id: role.id,
+                name: role.name,
+                color: role.hexColor
+            })).filter(role => role.id !== guild.id)
+        }));
+
+        res.json(members);
+    } catch (error) {
+        console.error('Members fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch members' });
+    }
+});
+
+/**
+ * GET /api/dashboard/roles
+ */
+router.get('/roles', requireAuth, requireGuildAccess, async (req, res) => {
+    try {
+        const guild = getSelectedGuild(req);
+        if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+        const roles = guild.roles.cache
+            .filter(role => role.id !== guild.id)
+            .map(role => ({
+                id: role.id,
+                name: role.name,
+                color: role.hexColor,
+                position: role.position,
+                memberCount: role.members.size
+            }))
+            .sort((a, b) => b.position - a.position);
+
+        res.json(roles);
+    } catch (error) {
+        console.error('Roles fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch roles' });
+    }
+});
+
+/**
+ * GET /api/dashboard/channels
+ */
+router.get('/channels', requireAuth, requireGuildAccess, async (req, res) => {
+    try {
+        const guild = getSelectedGuild(req);
+        if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+        const channels = guild.channels.cache.map(channel => ({
+            id: channel.id,
+            name: channel.name,
+            type: channel.type,
+            position: channel.position,
+            parentId: channel.parentId
+        })).sort((a, b) => a.position - b.position);
+
+        res.json(channels);
+    } catch (error) {
+        console.error('Channels fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch channels' });
+    }
+});
+
+/**
+ * GET /api/dashboard/invites
+ */
+router.get('/invites', requireAuth, requireGuildAccess, async (req, res) => {
+    try {
+        const guild = getSelectedGuild(req);
+        if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+        const inviteData = await inviteManager.getInviteLeaderboard(guild.id);
+        res.json(inviteData);
+    } catch (error) {
+        console.error('Invites fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch invites' });
+    }
 });
 
 /**
  * GET /api/dashboard/tickets
  */
-router.get('/tickets', requireAuth, async (req, res) => {
-  const guild = getSelectedGuild(req);
-  if (!guild) return res.status(404).json({ error: 'No server selected' });
+router.get('/tickets', requireAuth, requireGuildAccess, async (req, res) => {
+    try {
+        const guild = getSelectedGuild(req);
+        if (!guild) return res.status(404).json({ error: 'No server selected' });
 
-  try {
-    await guild.channels.fetch();
-    
-    const ticketChannels = guild.channels.cache.filter(c => 
-      c.type === ChannelType.GuildText && 
-      c.name && 
-      c.name.startsWith('ticket-')
-    );
+        const activeTicketsData = storage.get(guild.id, 'active_tickets') || {};
+        const activeTickets = Object.entries(activeTicketsData).map(([channelId, data]) => ({
+            channelId,
+            userId: data.userId,
+            createdAt: data.createdAt,
+            status: 'active'
+        }));
 
-    const activeTickets = ticketChannels.map(channel => {
-      const ticketNumber = channel.name.replace('ticket-', '');
-      
-      const creatorOverwrite = channel.permissionOverwrites.cache.find(p => 
-        p.type === 1 &&
-        !STAFF_ROLE_IDS.includes(p.id) && 
-        p.id !== guild.client.user.id
-      );
-      
-      const creatorId = creatorOverwrite ? creatorOverwrite.id : 'Unknown';
-      const creator = guild.members.cache.get(creatorId);
-      
-      return {
-        id: channel.id,
-        ticketNumber: ticketNumber,
-        user: creator ? creator.user.username : 'Unknown User',
-        userId: creatorId,
-        status: 'Active',
-        created: channel.createdAt,
-        channelName: channel.name
-      };
-    });
+        const closedTickets = await query(
+            'SELECT * FROM transcripts WHERE guild_id = ? ORDER BY closed_at DESC LIMIT 50',
+            [guild.id]
+        );
 
-    activeTickets.sort((a, b) => b.ticketNumber.localeCompare(a.ticketNumber));
-
-    res.json(activeTickets);
-  } catch (error) {
-    console.error('Error fetching active tickets:', error);
-    res.status(500).json({ error: 'Failed to fetch active tickets' });
-  }
-});
-
-/**
- * GET /api/dashboard/tickets/:id/messages
- */
-router.get('/tickets/:id/messages', requireAuth, async (req, res) => {
-  const guild = getSelectedGuild(req);
-  if (!guild) return res.status(404).json({ error: 'No server selected' });
-
-  try {
-    const channel = await guild.channels.fetch(req.params.id).catch(() => null);
-    if (!channel) return res.status(404).json({ error: 'Ticket channel not found' });
-
-    const messages = await channel.messages.fetch({ limit: 100 });
-    const formatted = messages.map(m => ({
-      id: m.id,
-      author: {
-        username: m.author.username,
-        avatar: m.author.displayAvatarURL(),
-        bot: m.author.bot
-      },
-      content: m.content,
-      timestamp: m.createdTimestamp,
-      embeds: m.embeds.map(e => ({ title: e.title, description: e.description })),
-      attachments: Array.from(m.attachments.values()).map(a => a.url)
-    }));
-
-    res.json(formatted.reverse());
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * DELETE /api/dashboard/tickets/:id
- */
-router.delete('/tickets/:id', requireAuth, async (req, res) => {
-  const guild = getSelectedGuild(req);
-  if (!guild) return res.status(404).json({ error: 'No server selected' });
-
-  try {
-    const channel = await guild.channels.fetch(req.params.id).catch(() => null);
-    if (channel) {
-      await channel.delete();
+        res.json({
+            active: activeTickets,
+            closed: closedTickets.map(ticket => ({
+                id: ticket.id,
+                channelId: ticket.channel_id,
+                userId: ticket.user_id,
+                closedBy: ticket.closed_by,
+                closedAt: ticket.closed_at,
+                messageCount: ticket.message_count
+            }))
+        });
+    } catch (error) {
+        console.error('Tickets fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch tickets' });
     }
-    
-    const activeTickets = storage.get(guild.id, 'active_tickets') || {};
-    if (activeTickets[req.params.id]) {
-      delete activeTickets[req.params.id];
-      await storage.set(guild.id, 'active_tickets', activeTickets);
-    }
-    
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/dashboard/guild-data
- */
-router.get('/guild-data', requireAuth, async (req, res) => {
-  const guild = getSelectedGuild(req);
-  if (!guild) return res.status(404).json({ error: 'No server selected' });
-
-  res.json({
-    roles: guild.roles.cache.filter(r => r.name !== '@everyone').map(r => ({
-      id: r.id,
-      name: r.name,
-      color: r.hexColor
-    })),
-    channels: guild.channels.cache.filter(c => c.type === ChannelType.GuildText).map(c => ({
-      id: c.id,
-      name: c.name
-    }))
-  });
-});
-
-/**
- * GET /api/dashboard/settings
- */
-router.get('/settings', requireAuth, async (req, res) => {
-  const guild = getSelectedGuild(req);
-  if (!guild) return res.status(404).json({ error: 'No server selected' });
-
-  const welcomeConfig = storage.get(guild.id, 'welcome_config') || {};
-
-  res.json({
-    autoRole: storage.get(guild.id, 'autoRoleId') || '',
-    welcomeChannel: welcomeConfig.channelId || '',
-    ticketCategory: storage.get(guild.id, 'ticketCategory') || ''
-  });
-});
-
-/**
- * POST /api/dashboard/settings
- */
-router.post('/settings', requireAuth, async (req, res) => {
-  const guild = getSelectedGuild(req);
-  if (!guild) return res.status(404).json({ error: 'No server selected' });
-
-  const { autoRole, welcomeChannel, ticketCategory } = req.body;
-  
-  if (autoRole !== undefined) await storage.set(guild.id, 'autoRoleId', autoRole);
-  
-  if (welcomeChannel !== undefined) {
-    const welcomeConfig = storage.get(guild.id, 'welcome_config') || {};
-    welcomeConfig.channelId = welcomeChannel;
-    await storage.set(guild.id, 'welcome_config', welcomeConfig);
-  }
-  
-  if (ticketCategory !== undefined) await storage.set(guild.id, 'ticketCategory', ticketCategory);
-
-  res.json({ success: true });
-});
-
-/**
- * GET /api/dashboard/users
- */
-router.get('/users', requireAuth, async (req, res) => {
-  const guild = getSelectedGuild(req);
-  if (!guild) return res.status(404).json({ error: 'No server selected' });
-
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 40;
-  const search = req.query.search || '';
-
-  try {
-    let members = [];
-    if (search) {
-      const searched = await guild.members.search({ query: search, limit });
-      members = Array.from(searched.values());
-    } else {
-      const required = page * limit;
-      if (guild.members.cache.size < required) {
-        await guild.members.fetch({ limit: Math.max(200, required) });
-      }
-      members = Array.from(guild.members.cache.values());
-    }
-
-    members.sort((a, b) => (b.joinedTimestamp || 0) - (a.joinedTimestamp || 0));
-    const total = search ? members.length : guild.memberCount;
-    const start = (page - 1) * limit;
-    const paginated = members.slice(start, start + limit);
-
-    const users = await Promise.all(paginated.map(async m => {
-      const invData = await inviteManager.getUserData(guild.id, m.id);
-      return {
-        id: m.id,
-        username: m.user.username,
-        avatar: m.user.displayAvatarURL({ size: 64 }),
-        joinedAt: m.joinedAt,
-        invites: invData.regular + invData.bonus - invData.fake - invData.left
-      };
-    }));
-
-    const totalPages = Math.ceil(total / limit);
-    res.json({ 
-      users, 
-      pagination: { 
-        page, 
-        total, 
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
-      } 
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * POST /api/dashboard/users/:id/moderate
- */
-router.post('/users/:id/moderate', requireAuth, async (req, res) => {
-  const guild = getSelectedGuild(req);
-  if (!guild) return res.status(404).json({ error: 'No server selected' });
-
-  const { action, reason } = req.body;
-  const targetId = req.params.id;
-
-  try {
-    const member = await guild.members.fetch(targetId).catch(() => null);
-    if (!member && action !== 'ban') return res.status(404).json({ error: 'Member not found' });
-
-    switch (action) {
-      case 'warn':
-        await member.send(`⚠️ You have been warned in **${guild.name}**\n**Reason:** ${reason}`).catch(() => null);
-        break;
-      case 'mute':
-        await member.timeout(24 * 60 * 60 * 1000, reason);
-        break;
-      case 'kick':
-        await member.kick(reason);
-        break;
-      case 'ban':
-        await guild.members.ban(targetId, { reason });
-        break;
-      default:
-        return res.status(400).json({ error: 'Invalid action' });
-    }
-
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/dashboard/transcripts
- */
-router.get('/transcripts', requireAuth, async (req, res) => {
-  const guild = getSelectedGuild(req);
-  if (!guild) return res.status(404).json({ error: 'No server selected' });
-
-  try {
-    const results = await query('SELECT id, user, closed_at, messages FROM transcripts WHERE guild_id = ? ORDER BY closed_at DESC', [guild.id]);
-    res.json(results);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/dashboard/transcripts/:id
- */
-router.get('/transcripts/:id', requireAuth, async (req, res) => {
-  try {
-    const results = await query('SELECT * FROM transcripts WHERE id = ?', [req.params.id]);
-    if (results.length === 0) return res.status(404).json({ error: 'Transcript not found' });
-    res.json(results[0]);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
 });
 
 /**
  * GET /api/dashboard/audit-logs
  */
-router.get('/audit-logs', requireAuth, async (req, res) => {
-  const guild = getSelectedGuild(req);
-  if (!guild) return res.status(404).json({ error: 'No server selected' });
+router.get('/audit-logs', requireAuth, requireGuildAccess, async (req, res) => {
+    try {
+        const guild = getSelectedGuild(req);
+        if (!guild) return res.status(404).json({ error: 'No server selected' });
 
-  try {
-    const auditLogs = await guild.fetchAuditLogs({ limit: 50 });
-    const formatted = auditLogs.entries.map(entry => ({
-      id: entry.id,
-      executor: entry.executor ? entry.executor.username : 'Unknown',
-      executorAvatar: entry.executor ? entry.executor.displayAvatarURL({ size: 64 }) : null,
-      action: AUDIT_ACTION_NAMES[entry.action] || `Action #${entry.action}`,
-      actionRaw: entry.action,
-      target: entry.target ? (entry.target.username || entry.target.name || entry.targetId) : 'N/A',
-      reason: entry.reason || null,
-      timestamp: entry.createdAt.toISOString()
-    }));
-    res.json(formatted);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+        const auditLogs = await guild.fetchAuditLogs({ limit: 50 });
+        const logs = auditLogs.entries.map(entry => ({
+            id: entry.id,
+            action: AUDIT_ACTION_NAMES[entry.action] || entry.action,
+            executorId: entry.executor?.id,
+            executorName: entry.executor?.username,
+            targetId: entry.target?.id,
+            targetName: entry.target?.username || entry.target?.name,
+            reason: entry.reason,
+            createdAt: entry.createdTimestamp
+        }));
 
-/**
- * GET /api/dashboard/giveaways
- */
-router.get('/giveaways', requireAuth, async (req, res) => {
-  const guild = getSelectedGuild(req);
-  if (!guild) return res.status(404).json({ error: 'No server selected' });
-
-  try {
-    const allGiveawayIds = storage.get(guild.id, 'all_giveaways') || [];
-    const giveaways = allGiveawayIds.map(msgId => {
-      const participants = storage.get(guild.id, `giveaway_${msgId}`) || [];
-      const meta = storage.get(guild.id, `giveaway_meta_${msgId}`) || {};
-      
-      const now = Math.floor(Date.now() / 1000);
-      let status = meta.status || 'active';
-      if (status === 'active' && meta.endTime && now > meta.endTime) {
-        status = 'ended';
-      }
-
-      return {
-        id: msgId,
-        prize: meta.prize || `Giveaway #${msgId.slice(-6)}`,
-        winnersCount: meta.winnersCount || 1,
-        hostTag: meta.hostTag || 'Unknown',
-        hostId: meta.hostId || null,
-        channelId: meta.channelId || null,
-        endTime: meta.endTime || null,
-        createdAt: meta.createdAt || null,
-        participants: participants.length,
-        winners: meta.winners || [],
-        status: status
-      };
-    });
-
-    // Sort: active first, then by creation time descending
-    giveaways.sort((a, b) => {
-      if (a.status === 'active' && b.status !== 'active') return -1;
-      if (a.status !== 'active' && b.status === 'active') return 1;
-      return (b.createdAt || 0) - (a.createdAt || 0);
-    });
-
-    res.json(giveaways);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * POST /api/dashboard/giveaways/:id/end
- */
-router.post('/giveaways/:id/end', requireAuth, async (req, res) => {
-  const guild = getSelectedGuild(req);
-  if (!guild) return res.status(404).json({ error: 'No server selected' });
-
-  const messageId = req.params.id;
-  const giveawayId = `giveaway_${messageId}`;
-  const participants = storage.get(guild.id, giveawayId);
-
-  if (!participants) {
-    return res.status(404).json({ error: 'Giveaway not found' });
-  }
-
-  try {
-    const meta = storage.get(guild.id, `giveaway_meta_${messageId}`) || {};
-    const channelId = meta.channelId;
-    
-    if (channelId) {
-      const channel = await guild.channels.fetch(channelId).catch(() => null);
-      if (channel) {
-        const message = await channel.messages.fetch(messageId).catch(() => null);
-        if (message && message.components.length > 0) {
-          const prize = meta.prize || 'Giveaway';
-          const winnersCount = meta.winnersCount || 1;
-          
-          const winners = [];
-          if (participants.length > 0) {
-            const shuffled = [...participants].sort(() => 0.5 - Math.random());
-            winners.push(...shuffled.slice(0, Math.min(winnersCount, participants.length)));
-          }
-
-          const winnerMentions = winners.length > 0 
-            ? winners.map(id => `<@${id}>`).join(', ') 
-            : 'No participants';
-
-          const dot = '<:dot:1460754381447237785>';
-          const timestamp = Math.floor(Date.now() / 1000);
-
-          const endEmbed = new EmbedBuilder()
-            .setTitle(prize)
-            .setColor('#2F3136')
-            .setDescription(
-              `${dot} **Ended**: <t:${timestamp}:R> (<t:${timestamp}:F>)\n` +
-              `${dot} **Hosted by**: <@${meta.hostId}>\n` +
-              `${dot} **Participants**: **${participants.length}**\n` +
-              `${dot} **Winners**: ${winnerMentions}`
-            )
-            .setTimestamp();
-
-          await message.edit({ embeds: [endEmbed], components: [] });
-
-          if (winners.length > 0) {
-            await channel.send(`🎉 Congratulations ${winnerMentions}! You won the **${prize}**!`);
-          }
-
-          meta.status = 'ended';
-          meta.winners = winners;
-          meta.participantCount = participants.length;
-          await storage.set(guild.id, `giveaway_meta_${messageId}`, meta);
-        }
-      }
+        res.json(logs);
+    } catch (error) {
+        console.error('Audit logs fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch audit logs' });
     }
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error ending giveaway from dashboard:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * DELETE /api/dashboard/giveaways/:id
- */
-router.delete('/giveaways/:id', requireAuth, async (req, res) => {
-  const guild = getSelectedGuild(req);
-  if (!guild) return res.status(404).json({ error: 'No server selected' });
-
-  const messageId = req.params.id;
-
-  try {
-    const meta = storage.get(guild.id, `giveaway_meta_${messageId}`) || {};
-    
-    // Try to delete the Discord message
-    if (meta.channelId) {
-      const channel = await guild.channels.fetch(meta.channelId).catch(() => null);
-      if (channel) {
-        const message = await channel.messages.fetch(messageId).catch(() => null);
-        if (message) await message.delete().catch(() => null);
-      }
-    }
-
-    // Clean up all storage
-    storage.set(guild.id, `giveaway_${messageId}`, undefined);
-    storage.set(guild.id, `giveaway_meta_${messageId}`, undefined);
-    
-    const allGiveaways = storage.get(guild.id, 'all_giveaways') || [];
-    const filtered = allGiveaways.filter(id => id !== messageId);
-    await storage.set(guild.id, 'all_giveaways', filtered);
-
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
 });
 
 module.exports = router;

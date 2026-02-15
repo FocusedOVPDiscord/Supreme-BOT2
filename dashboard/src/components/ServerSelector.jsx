@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 export default function ServerSelector({ selectedGuild, onGuildChange }) {
   const [guilds, setGuilds] = useState([]);
+  const [botInviteUrl, setBotInviteUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -13,7 +14,8 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
         });
         if (response.ok) {
           const data = await response.json();
-          setGuilds(data);
+          setGuilds(data.guilds || []);
+          setBotInviteUrl(data.botInviteUrl || '');
         }
       } catch (error) {
         console.error('Failed to fetch guilds:', error);
@@ -26,6 +28,12 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
   }, []);
 
   const handleSelectGuild = async (guild) => {
+    if (!guild.botInGuild) {
+      // Bot not in server, open invite link
+      window.open(`${botInviteUrl}&guild_id=${guild.id}`, '_blank');
+      return;
+    }
+
     try {
       const response = await fetch('/api/dashboard/select-guild', {
         method: 'POST',
@@ -35,11 +43,16 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
       });
 
       if (response.ok) {
-        onGuildChange(guild);
+        const data = await response.json();
+        onGuildChange(data.guild);
         setIsOpen(false);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to select server');
       }
     } catch (error) {
       console.error('Failed to select guild:', error);
+      alert('Failed to select server');
     }
   };
 
@@ -55,12 +68,11 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
   if (guilds.length === 0) {
     return (
       <div className="px-4 py-3 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold">
-        No servers found
+        ⚠️ No servers with manage permissions found
       </div>
     );
   }
 
-  // Use the selectedGuild passed from parent
   const currentGuild = selectedGuild;
 
   return (
@@ -88,7 +100,9 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
             )}
             <div className="flex-1 text-left">
               <p className="text-sm font-bold text-white truncate">{currentGuild.name}</p>
-              <p className="text-xs text-slate-500">{currentGuild.memberCount.toLocaleString()} members</p>
+              {currentGuild.memberCount && (
+                <p className="text-xs text-slate-500">{currentGuild.memberCount.toLocaleString()} members</p>
+              )}
             </div>
           </>
         ) : (
@@ -113,7 +127,7 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
 
       {isOpen && (
         <div className="absolute top-full left-0 right-0 mt-2 glass rounded-2xl border border-white/10 shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in duration-200">
-          <div className="p-2 space-y-1 max-h-64 overflow-y-auto">
+          <div className="p-2 space-y-1 max-h-96 overflow-y-auto">
             {guilds.map((guild) => (
               <button
                 key={guild.id}
@@ -121,7 +135,9 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
                 className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all ${
                   currentGuild?.id === guild.id
                     ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30'
-                    : 'text-slate-300 hover:bg-white/5'
+                    : guild.botInGuild
+                    ? 'text-slate-300 hover:bg-white/5'
+                    : 'text-slate-400 hover:bg-white/5 border border-dashed border-slate-600'
                 }`}
               >
                 {guild.icon ? (
@@ -137,16 +153,32 @@ export default function ServerSelector({ selectedGuild, onGuildChange }) {
                 )}
                 <div className="flex-1 text-left">
                   <p className="text-sm font-bold truncate">{guild.name}</p>
-                  <p className="text-xs text-slate-500">{guild.memberCount.toLocaleString()} members</p>
+                  {guild.botInGuild && guild.memberCount ? (
+                    <p className="text-xs text-slate-500">{guild.memberCount.toLocaleString()} members</p>
+                  ) : (
+                    <p className="text-xs text-amber-500">⚠️ Bot not added</p>
+                  )}
                 </div>
-                {currentGuild?.id === guild.id && (
+                {!guild.botInGuild ? (
+                  <div className="px-2 py-1 rounded-lg bg-indigo-600/20 text-indigo-400 text-xs font-bold">
+                    Add Bot
+                  </div>
+                ) : currentGuild?.id === guild.id ? (
                   <svg className="w-5 h-5 text-indigo-400" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
-                )}
+                ) : null}
               </button>
             ))}
           </div>
+          
+          {guilds.length > 0 && (
+            <div className="p-3 border-t border-white/10 bg-white/5">
+              <p className="text-xs text-slate-400 text-center">
+                {guilds.filter(g => g.botInGuild).length} / {guilds.length} servers with bot
+              </p>
+            </div>
+          )}
         </div>
       )}
 

@@ -4,19 +4,20 @@ import { useTranslation } from 'react-i18next';
 import ServerSelector from './ServerSelector';
 import ThemeLanguageSwitcher from './ThemeLanguageSwitcher';
 
-export default function Sidebar({ user, setIsAuthenticated, onClose }) {
+export default function Sidebar({ user, selectedGuild, setSelectedGuild, setIsAuthenticated, onClose }) {
   const { t } = useTranslation();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(true);
-  const [selectedGuild, setSelectedGuild] = useState(() => {
-    const saved = localStorage.getItem('selectedGuild');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const navigate = useNavigate();
 
   const handleGuildChange = (guild) => {
     setSelectedGuild(guild);
-    localStorage.setItem('selectedGuild', JSON.stringify(guild));
-    window.location.reload();
+    navigate('/dashboard');
+  };
+
+  const handleChangeServer = () => {
+    setSelectedGuild(null);
+    navigate('/dashboard/servers');
   };
 
   const handleLogout = async () => {
@@ -120,7 +121,16 @@ export default function Sidebar({ user, setIsAuthenticated, onClose }) {
       {/* Server Selector */}
       {isOpen && (
         <div className="px-4 py-4 border-b border-white/5">
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 px-2">Server</p>
+          <div className="flex items-center justify-between mb-3 px-2">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Server</p>
+            <button
+              onClick={handleChangeServer}
+              className="text-xs text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+              title="Change server"
+            >
+              Change
+            </button>
+          </div>
           <ServerSelector selectedGuild={selectedGuild} onGuildChange={handleGuildChange} />
         </div>
       )}

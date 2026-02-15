@@ -6,6 +6,7 @@ import './security.css'; // Security protection
 import './theme.css'; // Theme system
 import { initDevToolsProtection } from './utils/devToolsProtection';
 import Login from './pages/Login';
+import ServerSelection from './pages/ServerSelection';
 import Dashboard from './pages/Dashboard';
 import Tickets from './pages/Tickets';
 import Users from './pages/Users';
@@ -23,6 +24,7 @@ import './App.css';
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
+  const [selectedGuild, setSelectedGuild] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -64,67 +66,109 @@ function App() {
     );
   }
 
-  if (!isAuthenticated) {
-    return <Login setIsAuthenticated={setIsAuthenticated} setUser={setUser} />;
-  }
-
   return (
     <Router>
-      <div className="flex h-screen bg-[#0f172a] overflow-hidden">
-        {/* Mobile overlay */}
-        <div 
-          className={`sidebar-overlay ${sidebarOpen ? 'active' : ''} lg:hidden`}
-          onClick={() => setSidebarOpen(false)}
+      <Routes>
+        {/* Public routes */}
+        <Route 
+          path="/dashboard/login" 
+          element={
+            isAuthenticated ? (
+              <Navigate to="/dashboard/servers" replace />
+            ) : (
+              <Login setIsAuthenticated={setIsAuthenticated} setUser={setUser} />
+            )
+          } 
         />
 
-        {/* Sidebar */}
-        <div className={`
-          fixed lg:relative z-50 h-full
-          transition-transform duration-300 ease-in-out
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        `}>
-          <Sidebar 
-            user={user} 
-            setIsAuthenticated={setIsAuthenticated} 
-            onClose={() => setSidebarOpen(false)}
-          />
-        </div>
+        {/* Protected routes */}
+        {isAuthenticated ? (
+          <>
+            {/* Server selection route */}
+            <Route 
+              path="/dashboard/servers" 
+              element={
+                <ServerSelection 
+                  setSelectedGuild={setSelectedGuild} 
+                  user={user} 
+                />
+              } 
+            />
 
-        {/* Main content */}
-        <main className="flex-1 overflow-auto relative">
-          {/* Mobile header bar */}
-          <div className="sticky top-0 z-30 lg:hidden bg-slate-900/80 backdrop-blur-xl border-b border-white/5 px-4 py-3 flex items-center gap-3">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="p-2 hover:bg-white/5 rounded-xl transition-colors"
-            >
-              <svg className="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg gradient-bg flex items-center justify-center font-bold text-sm shadow-lg shadow-indigo-500/20">S</div>
-              <span className="text-white font-bold text-sm">Supreme Bot</span>
-            </div>
-          </div>
+            {/* Dashboard routes - require server selection */}
+            <Route 
+              path="/dashboard/*" 
+              element={
+                selectedGuild ? (
+                  <div className="flex h-screen bg-[#0f172a] overflow-hidden">
+                    {/* Mobile overlay */}
+                    <div 
+                      className={`sidebar-overlay ${sidebarOpen ? 'active' : ''} lg:hidden`}
+                      onClick={() => setSidebarOpen(false)}
+                    />
 
-          <Routes>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/dashboard/login" element={<Login setIsAuthenticated={setIsAuthenticated} setUser={setUser} />} />
-            <Route path="/dashboard/tickets" element={<Tickets />} />
-            <Route path="/dashboard/users" element={<Users />} />
-            <Route path="/dashboard/giveaways" element={<Giveaways />} />
-            <Route path="/dashboard/settings" element={<Settings />} />
-            <Route path="/dashboard/audit-logs" element={<AuditLogs />} />
-            <Route path="/dashboard/transcripts" element={<Transcripts />} />
-            <Route path="/dashboard/ai" element={<AI />} />
-            <Route path="/dashboard/staff-verification/:guildId" element={<StaffVerification />} />
-            <Route path="/dashboard/welcome-setup/:guildId" element={<WelcomeSetup />} />
-            <Route path="/dashboard/growtopia" element={<Growtopia />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
-        </main>
-      </div>
+                    {/* Sidebar */}
+                    <div className={`
+                      fixed lg:relative z-50 h-full
+                      transition-transform duration-300 ease-in-out
+                      ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+                    `}>
+                      <Sidebar 
+                        user={user} 
+                        selectedGuild={selectedGuild}
+                        setSelectedGuild={setSelectedGuild}
+                        setIsAuthenticated={setIsAuthenticated} 
+                        onClose={() => setSidebarOpen(false)}
+                      />
+                    </div>
+
+                    {/* Main content */}
+                    <main className="flex-1 overflow-auto relative">
+                      {/* Mobile header bar */}
+                      <div className="sticky top-0 z-30 lg:hidden bg-slate-900/80 backdrop-blur-xl border-b border-white/5 px-4 py-3 flex items-center gap-3">
+                        <button
+                          onClick={() => setSidebarOpen(true)}
+                          className="p-2 hover:bg-white/5 rounded-xl transition-colors"
+                        >
+                          <svg className="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                          </svg>
+                        </button>
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg gradient-bg flex items-center justify-center font-bold text-sm shadow-lg shadow-indigo-500/20">S</div>
+                          <span className="text-white font-bold text-sm">{selectedGuild.name}</span>
+                        </div>
+                      </div>
+
+                      <Routes>
+                        <Route path="/" element={<Dashboard selectedGuild={selectedGuild} />} />
+                        <Route path="/tickets" element={<Tickets selectedGuild={selectedGuild} />} />
+                        <Route path="/users" element={<Users selectedGuild={selectedGuild} />} />
+                        <Route path="/giveaways" element={<Giveaways selectedGuild={selectedGuild} />} />
+                        <Route path="/settings" element={<Settings selectedGuild={selectedGuild} />} />
+                        <Route path="/audit-logs" element={<AuditLogs selectedGuild={selectedGuild} />} />
+                        <Route path="/transcripts" element={<Transcripts selectedGuild={selectedGuild} />} />
+                        <Route path="/ai" element={<AI selectedGuild={selectedGuild} />} />
+                        <Route path="/staff-verification/:guildId" element={<StaffVerification />} />
+                        <Route path="/welcome-setup/:guildId" element={<WelcomeSetup />} />
+                        <Route path="/growtopia" element={<Growtopia selectedGuild={selectedGuild} />} />
+                        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                      </Routes>
+                    </main>
+                  </div>
+                ) : (
+                  <Navigate to="/dashboard/servers" replace />
+                )
+              } 
+            />
+          </>
+        ) : (
+          <Route path="*" element={<Navigate to="/dashboard/login" replace />} />
+        )}
+
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/dashboard/login" replace />} />
+      </Routes>
     </Router>
   );
 }
