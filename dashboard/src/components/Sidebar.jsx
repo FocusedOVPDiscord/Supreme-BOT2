@@ -30,7 +30,8 @@ export default function Sidebar({ user, selectedGuild, setSelectedGuild, setIsAu
       });
       
       if (response.ok) {
-        localStorage.removeItem('selectedGuild');
+        sessionStorage.removeItem('selectedGuild');
+        setSelectedGuild(null);
         setIsAuthenticated(false);
         window.location.href = '/dashboard/login';
       }

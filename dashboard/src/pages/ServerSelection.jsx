@@ -82,7 +82,8 @@ export default function ServerSelection({ setSelectedGuild, user }) {
       });
       
       if (response.ok) {
-        // Clear local state
+        // Clear local state and sessionStorage
+        sessionStorage.removeItem('selectedGuild');
         setSelectedGuild(null);
         // Force reload to clear all state
         window.location.href = '/dashboard/login';

@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && npm run postbuild",
+    "postbuild": "cp public/logo.webp dist/ && cp public/favicon.ico dist/",
     "lint": "eslint .",
     "preview": "vite preview"
   },

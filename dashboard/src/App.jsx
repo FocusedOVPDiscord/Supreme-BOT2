@@ -24,9 +24,22 @@ import './App.css';
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
-  const [selectedGuild, setSelectedGuild] = useState(null);
+  const [selectedGuild, setSelectedGuild] = useState(() => {
+    // Try to restore selectedGuild from sessionStorage
+    const saved = sessionStorage.getItem('selectedGuild');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Persist selectedGuild to sessionStorage whenever it changes
+  useEffect(() => {
+    if (selectedGuild) {
+      sessionStorage.setItem('selectedGuild', JSON.stringify(selectedGuild));
+    } else {
+      sessionStorage.removeItem('selectedGuild');
+    }
+  }, [selectedGuild]);
 
   useEffect(() => {
     // Initialize DevTools protection
