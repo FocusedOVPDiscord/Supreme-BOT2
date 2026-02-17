@@ -372,8 +372,24 @@ router.get('/stats', requireAuth, requireGuildAccess, async (req, res) => {
     const guild = getSelectedGuild(req);
     if (!guild) return res.status(404).json({ error: 'No server selected' });
 
+    // Get active tickets and clean up stale entries
     const activeTicketsData = storage.get(guild.id, 'active_tickets') || {};
-    const activeTicketsCount = Object.keys(activeTicketsData).length;
+    const validTickets = {};
+    
+    // Verify each ticket channel still exists
+    for (const [channelId, data] of Object.entries(activeTicketsData)) {
+        const channel = guild.channels.cache.get(channelId);
+        if (channel) {
+            validTickets[channelId] = data;
+        }
+    }
+    
+    // Update storage if we found stale entries
+    if (Object.keys(validTickets).length !== Object.keys(activeTicketsData).length) {
+        await storage.set(guild.id, 'active_tickets', validTickets);
+    }
+    
+    const activeTicketsCount = Object.keys(validTickets).length;
     
     // Count closed tickets from database
     let closedTicketsCount = 0;
@@ -399,13 +415,13 @@ router.get('/stats', requireAuth, requireGuildAccess, async (req, res) => {
     let recentTickets = [];
     try {
         const results = await query(
-            'SELECT id, user_id, channel_id, created_at, closed_at FROM transcripts WHERE guild_id = ? ORDER BY created_at DESC LIMIT 5',
+            'SELECT id, user, closed_at FROM transcripts WHERE guild_id = ? ORDER BY closed_at DESC LIMIT 5',
             [guild.id]
         );
         recentTickets = results.map(ticket => ({
             id: ticket.id,
-            title: `Ticket by User ${ticket.user_id.slice(0, 4)}...`,
-            status: ticket.closed_at ? 'Closed' : 'Active'
+            title: `Ticket by User ${ticket.user ? ticket.user.slice(0, 8) : 'Unknown'}`,
+            status: 'Closed'
         }));
     } catch (error) {
         console.error('Error fetching recent tickets:', error);
@@ -528,28 +544,34 @@ router.get('/tickets', requireAuth, requireGuildAccess, async (req, res) => {
         const guild = getSelectedGuild(req);
         if (!guild) return res.status(404).json({ error: 'No server selected' });
 
+        // Get active tickets and clean up stale entries
         const activeTicketsData = storage.get(guild.id, 'active_tickets') || {};
-        const activeTickets = Object.entries(activeTicketsData).map(([channelId, data]) => ({
-            channelId,
-            userId: data.userId,
-            createdAt: data.createdAt,
-            status: 'active'
-        }));
+        const validActiveTickets = [];
+        
+        for (const [channelId, data] of Object.entries(activeTicketsData)) {
+            const channel = guild.channels.cache.get(channelId);
+            if (channel) {
+                validActiveTickets.push({
+                    channelId,
+                    userId: data.userId,
+                    createdAt: data.createdAt,
+                    status: 'active'
+                });
+            }
+        }
 
         const closedTickets = await query(
-            'SELECT * FROM transcripts WHERE guild_id = ? ORDER BY closed_at DESC LIMIT 50',
+            'SELECT id, guild_id, user, closed_at, messages FROM transcripts WHERE guild_id = ? ORDER BY closed_at DESC LIMIT 50',
             [guild.id]
         );
 
         res.json({
-            active: activeTickets,
+            active: validActiveTickets,
             closed: closedTickets.map(ticket => ({
                 id: ticket.id,
-                channelId: ticket.channel_id,
-                userId: ticket.user_id,
-                closedBy: ticket.closed_by,
+                userId: ticket.user,
                 closedAt: ticket.closed_at,
-                messageCount: ticket.message_count
+                messageCount: ticket.messages ? JSON.parse(ticket.messages).length : 0
             }))
         });
     } catch (error) {
@@ -597,7 +619,7 @@ router.get('/users', requireAuth, requireGuildAccess, async (req, res) => {
         const limit = parseInt(req.query.limit) || 40;
         const search = req.query.search || '';
 
-        await guild.members.fetch();
+        // Use cached members only to avoid rate limiting
         let members = Array.from(guild.members.cache.values());
 
         // Filter by search term
@@ -725,19 +747,16 @@ router.get('/transcripts', requireAuth, requireGuildAccess, async (req, res) => 
         if (!guild) return res.status(404).json({ error: 'No server selected' });
 
         const transcripts = await query(
-            'SELECT * FROM transcripts WHERE guild_id = ? ORDER BY closed_at DESC LIMIT 100',
+            'SELECT id, guild_id, user, closed_at, messages FROM transcripts WHERE guild_id = ? ORDER BY closed_at DESC LIMIT 100',
             [guild.id]
         );
 
         res.json({
             transcripts: transcripts.map(t => ({
                 id: t.id,
-                channelId: t.channel_id,
-                userId: t.user_id,
-                closedBy: t.closed_by,
+                userId: t.user,
                 closedAt: t.closed_at,
-                messageCount: t.message_count,
-                createdAt: t.created_at
+                messageCount: t.messages ? JSON.parse(t.messages).length : 0
             }))
         });
     } catch (error) {
