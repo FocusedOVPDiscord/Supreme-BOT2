@@ -57,8 +57,12 @@ export default function ServerSelection({ setSelectedGuild, user }) {
 
       if (response.ok) {
         const data = await response.json();
+        // Set the selected guild in parent state
         setSelectedGuild(data.guild);
-        navigate('/dashboard');
+        // Use requestAnimationFrame to ensure state update completes
+        requestAnimationFrame(() => {
+          navigate('/dashboard');
+        });
       } else {
         const error = await response.json();
         setToast({ message: error.error || 'Failed to select server', type: 'error' });
