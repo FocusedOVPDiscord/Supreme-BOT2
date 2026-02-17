@@ -260,9 +260,14 @@ router.get('/guilds', requireAuth, async (req, res) => {
         const client = req.app.locals.client;
         const managedGuilds = [];
 
+        console.log(`[GUILDS] User has ${userGuilds.length} total guilds`);
+
         for (const guild of userGuilds) {
+            const hasPerms = hasManagePermissions(guild.permissions);
+            console.log(`[GUILDS] ${guild.name}: hasPerms=${hasPerms}, permissions=${guild.permissions}`);
+            
             // Check if user has manage permissions
-            if (hasManagePermissions(guild.permissions)) {
+            if (hasPerms) {
                 const botGuild = client.guilds.cache.get(guild.id);
                 
                 managedGuilds.push({

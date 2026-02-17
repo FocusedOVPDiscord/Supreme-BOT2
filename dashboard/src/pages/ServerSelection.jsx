@@ -71,6 +71,7 @@ export default function ServerSelection({ setSelectedGuild, user }) {
 
   const handleLogout = async () => {
     try {
+      setLoading(true);
       const response = await fetch('/api/dashboard/auth/logout', {
         method: 'POST',
         credentials: 'include',
@@ -79,13 +80,15 @@ export default function ServerSelection({ setSelectedGuild, user }) {
       if (response.ok) {
         // Clear local state
         setSelectedGuild(null);
-        // Navigate to login
-        navigate('/dashboard/login');
+        // Force reload to clear all state
+        window.location.href = '/dashboard/login';
       } else {
+        setLoading(false);
         setToast({ message: 'Logout failed. Please try again.', type: 'error' });
       }
     } catch (error) {
       console.error('Logout failed:', error);
+      setLoading(false);
       setToast({ message: 'Logout failed. Please try again.', type: 'error' });
     }
   };
@@ -149,7 +152,8 @@ export default function ServerSelection({ setSelectedGuild, user }) {
               </div>
               <button
                 onClick={handleLogout}
-                className="px-3 py-1.5 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-400 text-xs font-bold transition-colors"
+                disabled={loading}
+                className="px-3 py-1.5 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-400 text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Logout
               </button>
