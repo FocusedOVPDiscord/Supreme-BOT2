@@ -384,13 +384,45 @@ router.get('/stats', requireAuth, requireGuildAccess, async (req, res) => {
         console.error('Error counting closed tickets:', error);
     }
 
+    // Get bot uptime
+    const client = req.app.locals.client;
+    const uptime = client.uptime || 0;
+    
+    // Get channels and roles count
+    const channelsCount = guild.channels.cache.size;
+    const rolesCount = guild.roles.cache.size;
+    
+    // Get bot status
+    const botStatus = client.user ? 'Online' : 'Offline';
+    
+    // Get recent tickets (last 5)
+    let recentTickets = [];
+    try {
+        const results = await query(
+            'SELECT id, user_id, channel_id, created_at, closed_at FROM transcripts WHERE guild_id = ? ORDER BY created_at DESC LIMIT 5',
+            [guild.id]
+        );
+        recentTickets = results.map(ticket => ({
+            id: ticket.id,
+            title: `Ticket by User ${ticket.user_id.slice(0, 4)}...`,
+            status: ticket.closed_at ? 'Closed' : 'Active'
+        }));
+    } catch (error) {
+        console.error('Error fetching recent tickets:', error);
+    }
+    
     res.json({
-        guildName: guild.name,
+        serverName: guild.name,
         guildIcon: guild.iconURL({ size: 128 }),
-        memberCount: guild.memberCount,
+        totalMembers: guild.memberCount,
         activeTickets: activeTicketsCount,
         closedTickets: closedTicketsCount,
-        totalTickets: activeTicketsCount + closedTicketsCount
+        totalTickets: activeTicketsCount + closedTicketsCount,
+        uptime: uptime,
+        channels: channelsCount,
+        roles: rolesCount,
+        botStatus: botStatus,
+        recentTickets: recentTickets
     });
 });
 
@@ -550,6 +582,160 @@ router.get('/audit-logs', requireAuth, requireGuildAccess, async (req, res) => {
     } catch (error) {
         console.error('Audit logs fetch error:', error);
         res.status(500).json({ error: 'Failed to fetch audit logs' });
+    }
+});
+
+/**
+ * GET /api/dashboard/users - Paginated users endpoint
+ */
+router.get('/users', requireAuth, requireGuildAccess, async (req, res) => {
+    try {
+        const guild = getSelectedGuild(req);
+        if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 40;
+        const search = req.query.search || '';
+
+        await guild.members.fetch();
+        let members = Array.from(guild.members.cache.values());
+
+        // Filter by search term
+        if (search) {
+            const searchLower = search.toLowerCase();
+            members = members.filter(member => 
+                member.user.username.toLowerCase().includes(searchLower) ||
+                member.user.tag.toLowerCase().includes(searchLower)
+            );
+        }
+
+        // Pagination
+        const total = members.length;
+        const totalPages = Math.ceil(total / limit);
+        const start = (page - 1) * limit;
+        const end = start + limit;
+        const paginatedMembers = members.slice(start, end);
+
+        const users = paginatedMembers.map(member => ({
+            id: member.id,
+            username: member.user.username,
+            discriminator: member.user.discriminator,
+            tag: member.user.tag,
+            avatar: member.user.displayAvatarURL({ size: 64 }),
+            joinedAt: member.joinedTimestamp,
+            roles: member.roles.cache.map(role => ({
+                id: role.id,
+                name: role.name,
+                color: role.hexColor
+            })).filter(role => role.id !== guild.id)
+        }));
+
+        res.json({
+            users: users,
+            pagination: {
+                page: page,
+                totalPages: totalPages,
+                total: total,
+                limit: limit
+            }
+        });
+    } catch (error) {
+        console.error('Users fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch users' });
+    }
+});
+
+/**
+ * GET /api/dashboard/guild_data - Guild data endpoint
+ */
+router.get('/guild_data', requireAuth, requireGuildAccess, async (req, res) => {
+    try {
+        const guild = getSelectedGuild(req);
+        if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+        res.json({
+            id: guild.id,
+            name: guild.name,
+            icon: guild.iconURL({ size: 256 }),
+            memberCount: guild.memberCount,
+            channelCount: guild.channels.cache.size,
+            roleCount: guild.roles.cache.size,
+            createdAt: guild.createdTimestamp
+        });
+    } catch (error) {
+        console.error('Guild data fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch guild data' });
+    }
+});
+
+/**
+ * GET /api/dashboard/giveaways - Giveaways endpoint
+ */
+router.get('/giveaways', requireAuth, requireGuildAccess, async (req, res) => {
+    try {
+        const guild = getSelectedGuild(req);
+        if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+        // TODO: Implement giveaways fetching from database
+        // For now, return empty array
+        res.json({
+            active: [],
+            ended: []
+        });
+    } catch (error) {
+        console.error('Giveaways fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch giveaways' });
+    }
+});
+
+/**
+ * GET /api/dashboard/transcripts - Transcripts endpoint
+ */
+router.get('/transcripts', requireAuth, requireGuildAccess, async (req, res) => {
+    try {
+        const guild = getSelectedGuild(req);
+        if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+        const transcripts = await query(
+            'SELECT * FROM transcripts WHERE guild_id = ? ORDER BY closed_at DESC LIMIT 100',
+            [guild.id]
+        );
+
+        res.json({
+            transcripts: transcripts.map(t => ({
+                id: t.id,
+                channelId: t.channel_id,
+                userId: t.user_id,
+                closedBy: t.closed_by,
+                closedAt: t.closed_at,
+                messageCount: t.message_count,
+                createdAt: t.created_at
+            }))
+        });
+    } catch (error) {
+        console.error('Transcripts fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch transcripts' });
+    }
+});
+
+/**
+ * GET /api/dashboard/settings - Settings endpoint
+ */
+router.get('/settings', requireAuth, requireGuildAccess, async (req, res) => {
+    try {
+        const guild = getSelectedGuild(req);
+        if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+        // Fetch settings from storage
+        const settings = storage.get(guild.id, 'settings') || {};
+
+        res.json({
+            guildId: guild.id,
+            settings: settings
+        });
+    } catch (error) {
+        console.error('Settings fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch settings' });
     }
 });
 
