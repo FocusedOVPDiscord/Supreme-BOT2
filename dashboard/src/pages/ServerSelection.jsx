@@ -238,7 +238,13 @@ export default function ServerSelection({ setSelectedGuild, user }) {
                         </div>
                       )}
                     </div>
-                  </button                ))}\n                </div>\n              </div>\n\n              {/* Stats */}              <div className="mt-8 glass rounded-2xl p-6 border border-white/10">
+                  </button>
+                ))}
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div className="mt-8 glass rounded-2xl p-6 border border-white/10">
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div>
                     <p className="text-2xl font-black text-white">{guilds.length}</p>
