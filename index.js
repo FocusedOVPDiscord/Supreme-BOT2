@@ -274,12 +274,6 @@ const client = new Client({
         retries: 5,
         globalRequestsPerSecond: 50
     },
-    // Reduce initial cache load
-    makeCache: require('@discordjs/collection').Options.cacheWithLimits({
-        MessageManager: 0, // Don't cache messages on startup
-        GuildMemberManager: 100, // Limit member cache
-        UserManager: 100 // Limit user cache
-    }),
     // Memory Management: Clear caches periodically
     sweepers: {
         messages: {
