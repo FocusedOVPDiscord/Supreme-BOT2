@@ -673,6 +673,25 @@ app.use('/api/growtopia', growtopiaApi);
 // Serve static files for the React dashboard
 const dashboardDistPath = path.join(__dirname, 'dashboard', 'dist');
 if (fs.existsSync(dashboardDistPath)) {
+    // Serve logo and favicon from root path for dashboard
+    app.get('/logo.webp', (req, res) => {
+        const logoPath = path.join(dashboardDistPath, 'logo.webp');
+        if (fs.existsSync(logoPath)) {
+            res.sendFile(logoPath);
+        } else {
+            res.status(404).send('Logo not found');
+        }
+    });
+    
+    app.get('/favicon.ico', (req, res) => {
+        const faviconPath = path.join(dashboardDistPath, 'favicon.ico');
+        if (fs.existsSync(faviconPath)) {
+            res.sendFile(faviconPath);
+        } else {
+            res.status(404).send('Favicon not found');
+        }
+    });
+    
     // Serve static assets with a trailing slash redirect
     app.use('/dashboard', express.static(dashboardDistPath, { index: false }));
     

@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: '', // Use empty string for relative paths in the build
+  publicDir: 'public', // Explicitly set public directory
   server: {
     proxy: {
       '/api': {
@@ -16,5 +17,6 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    copyPublicDir: true, // Explicitly enable copying public directory
   }
 })
