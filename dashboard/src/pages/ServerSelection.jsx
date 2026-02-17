@@ -71,13 +71,22 @@ export default function ServerSelection({ setSelectedGuild, user }) {
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/dashboard/auth/logout', {
+      const response = await fetch('/api/dashboard/auth/logout', {
         method: 'POST',
         credentials: 'include',
       });
-      navigate('/dashboard/login');
+      
+      if (response.ok) {
+        // Clear local state
+        setSelectedGuild(null);
+        // Navigate to login
+        navigate('/dashboard/login');
+      } else {
+        setToast({ message: 'Logout failed. Please try again.', type: 'error' });
+      }
     } catch (error) {
       console.error('Logout failed:', error);
+      setToast({ message: 'Logout failed. Please try again.', type: 'error' });
     }
   };
 
@@ -168,7 +177,8 @@ export default function ServerSelection({ setSelectedGuild, user }) {
             </div>
           ) : (
             <div className="max-w-4xl mx-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {guilds.map((guild) => (
                   <button
                     key={guild.id}
@@ -224,12 +234,7 @@ export default function ServerSelection({ setSelectedGuild, user }) {
                         </div>
                       )}
                     </div>
-                  </button>
-                ))}
-              </div>
-
-              {/* Stats */}
-              <div className="mt-8 glass rounded-2xl p-6 border border-white/10">
+                  </button                ))}\n                </div>\n              </div>\n\n              {/* Stats */}              <div className="mt-8 glass rounded-2xl p-6 border border-white/10">
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div>
                     <p className="text-2xl font-black text-white">{guilds.length}</p>

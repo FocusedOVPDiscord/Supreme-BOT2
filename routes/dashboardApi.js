@@ -233,7 +233,14 @@ router.post('/auth/callback', async (req, res) => {
  * POST /api/dashboard/auth/logout
  */
 router.post('/auth/logout', (req, res) => {
-    req.session.destroy(() => res.json({ success: true }));
+    req.session.destroy((err) => {
+        if (err) {
+            console.error('Logout error:', err);
+            return res.status(500).json({ error: 'Failed to logout' });
+        }
+        res.clearCookie('connect.sid');
+        res.json({ success: true });
+    });
 });
 
 /**
