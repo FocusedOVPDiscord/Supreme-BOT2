@@ -125,8 +125,8 @@ export default function Login({ setIsAuthenticated, setUser }) {
 
         <div className="relative z-10 w-full max-w-md px-6 animate-in fade-in zoom-in duration-700">
           <div className="text-center mb-10">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl gradient-bg shadow-2xl shadow-indigo-500/40 mb-6">
-              <span className="text-4xl font-black text-white">S</span>
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-black shadow-2xl shadow-green-500/40 mb-6 overflow-hidden">
+              <img src="/logo.webp" alt="SM Logo" className="w-full h-full object-cover" />
             </div>
             <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight mb-2">
               Supreme <span className="gradient-text">Bot</span>

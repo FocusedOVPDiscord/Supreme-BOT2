@@ -125,8 +125,8 @@ export default function ServerSelection({ setSelectedGuild, user }) {
         <div className="relative z-10 container mx-auto px-4 py-12">
           {/* Header */}
           <div className="text-center mb-12">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl gradient-bg shadow-2xl shadow-indigo-500/40 mb-4">
-              <span className="text-3xl font-black text-white">S</span>
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-black shadow-2xl shadow-green-500/40 mb-4 overflow-hidden">
+              <img src="/logo.webp" alt="SM Logo" className="w-full h-full object-cover" />
             </div>
             <h1 className="text-4xl font-black text-white mb-2">
               Select a <span className="gradient-text">Server</span>

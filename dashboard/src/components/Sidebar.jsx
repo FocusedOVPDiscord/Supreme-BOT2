@@ -85,7 +85,9 @@ export default function Sidebar({ user, selectedGuild, setSelectedGuild, setIsAu
       <div className="p-4 lg:p-6 flex items-center justify-between border-b border-white/5">
         {isOpen && (
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center font-bold text-lg shadow-lg shadow-indigo-500/20">S</div>
+            <div className="w-8 h-8 rounded-lg bg-black flex items-center justify-center shadow-lg shadow-green-500/20 overflow-hidden">
+              <img src="/logo.webp" alt="SM" className="w-full h-full object-cover" />
+            </div>
             <h1 className="text-xl font-bold tracking-tight">Supreme <span className="text-indigo-400">Bot</span></h1>
           </div>
         )}

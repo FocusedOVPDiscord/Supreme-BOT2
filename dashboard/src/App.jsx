@@ -135,7 +135,9 @@ function App() {
                           </svg>
                         </button>
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg gradient-bg flex items-center justify-center font-bold text-sm shadow-lg shadow-indigo-500/20">S</div>
+                          <div className="w-7 h-7 rounded-lg bg-black flex items-center justify-center shadow-lg shadow-green-500/20 overflow-hidden">
+                            <img src="/logo.webp" alt="SM" className="w-full h-full object-cover" />
+                          </div>
                           <span className="text-white font-bold text-sm">{selectedGuild.name}</span>
                         </div>
                       </div>
