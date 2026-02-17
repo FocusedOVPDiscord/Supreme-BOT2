@@ -571,7 +571,7 @@ router.get('/tickets', requireAuth, requireGuildAccess, async (req, res) => {
                 id: ticket.id,
                 userId: ticket.user,
                 closedAt: ticket.closed_at,
-                messageCount: ticket.messages ? JSON.parse(ticket.messages).length : 0
+                messageCount: ticket.messages ? (typeof ticket.messages === 'string' ? JSON.parse(ticket.messages).length : ticket.messages.length) : 0
             }))
         });
     } catch (error) {
@@ -756,7 +756,7 @@ router.get('/transcripts', requireAuth, requireGuildAccess, async (req, res) => 
                 id: t.id,
                 userId: t.user,
                 closedAt: t.closed_at,
-                messageCount: t.messages ? JSON.parse(t.messages).length : 0
+                messageCount: t.messages ? (typeof t.messages === 'string' ? JSON.parse(t.messages).length : t.messages.length) : 0
             }))
         });
     } catch (error) {
