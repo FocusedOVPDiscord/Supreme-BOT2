@@ -143,25 +143,62 @@ router.post('/auth/callback', async (req, res) => {
             return res.status(400).json({ error: 'No authorization code provided' });
         }
 
-        // Exchange code for access token
-        const tokenResponse = await axios.post('https://discord.com/api/v10/oauth2/token', 
-            new URLSearchParams({
-                client_id: DISCORD_CLIENT_ID,
-                client_secret: DISCORD_CLIENT_SECRET,
-                grant_type: 'authorization_code',
-                code: code,
-                redirect_uri: REDIRECT_URI,
-            }), {
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        // Exchange code for access token with retry logic
+        let tokenResponse;
+        let retries = 3;
+        while (retries > 0) {
+            try {
+                tokenResponse = await axios.post('https://discord.com/api/v10/oauth2/token', 
+                    new URLSearchParams({
+                        client_id: DISCORD_CLIENT_ID,
+                        client_secret: DISCORD_CLIENT_SECRET,
+                        grant_type: 'authorization_code',
+                        code: code,
+                        redirect_uri: REDIRECT_URI,
+                    }), {
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        timeout: 10000
+                    }
+                );
+                break; // Success
+            } catch (err) {
+                if (err.response?.status === 429) {
+                    // Rate limited - wait and retry
+                    const retryAfter = err.response.headers['retry-after'] || 5;
+                    console.warn(`⚠️ [OAUTH] Rate limited, retrying after ${retryAfter}s`);
+                    await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+                    retries--;
+                    if (retries === 0) throw err;
+                } else {
+                    throw err;
+                }
             }
-        );
+        }
 
         const { access_token } = tokenResponse.data;
 
-        // Get user info
-        const userResponse = await axios.get('https://discord.com/api/v10/users/@me', {
-            headers: { 'Authorization': `Bearer ${access_token}` },
-        });
+        // Get user info with retry logic
+        let userResponse;
+        retries = 3;
+        while (retries > 0) {
+            try {
+                userResponse = await axios.get('https://discord.com/api/v10/users/@me', {
+                    headers: { 'Authorization': `Bearer ${access_token}` },
+                    timeout: 10000
+                });
+                break; // Success
+            } catch (err) {
+                if (err.response?.status === 429) {
+                    const retryAfter = err.response.headers['retry-after'] || 5;
+                    console.warn(`⚠️ [OAUTH] Rate limited, retrying after ${retryAfter}s`);
+                    await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+                    retries--;
+                    if (retries === 0) throw err;
+                } else {
+                    throw err;
+                }
+            }
+        }
 
         const discordUser = userResponse.data;
 
@@ -184,7 +221,11 @@ router.post('/auth/callback', async (req, res) => {
         res.json({ success: true, user: req.session.user });
     } catch (error) {
         console.error('OAuth callback error:', error.response?.data || error.message);
-        res.status(500).json({ error: 'Authentication failed', details: error.response?.data || error.message });
+        if (error.response?.status === 429) {
+            res.status(429).json({ error: 'Rate limited. Please try again in a few seconds.' });
+        } else {
+            res.status(500).json({ error: 'Authentication failed', details: error.response?.data?.message || error.message });
+        }
     }
 });
 

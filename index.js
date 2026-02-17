@@ -295,8 +295,23 @@ client.on('error', (error) => {
     console.error('❌ [DISCORD CLIENT ERROR]:', error);
 });
 
+// Rate limit handler
+client.rest.on('rateLimited', (info) => {
+    console.warn('⚠️ [RATE LIMIT]:', {
+        timeout: info.timeout,
+        limit: info.limit,
+        method: info.method,
+        path: info.path,
+        route: info.route
+    });
+});
+
 client.on('warn', (warning) => {
     console.warn('⚠️ [DISCORD WARNING]:', warning);
+});
+
+client.on('error', (error) => {
+    console.error('❌ [DISCORD ERROR]:', error);
 });
 
 client.on('shardError', (error) => {
@@ -304,7 +319,7 @@ client.on('shardError', (error) => {
 });
 
 client.on('shardDisconnect', (event, shardId) => {
-    console.warn(`⚠️ [SHARD ${shardId}] Disconnected:`, event);
+    console.warn(`⚠️ [SHARD ${shardId}] Disconnected - Code: ${event.code}, Reason: ${event.reason || 'Unknown'}`);
 });
 
 client.on('shardReconnecting', (shardId) => {
@@ -314,6 +329,29 @@ client.on('shardReconnecting', (shardId) => {
 client.on('shardResume', (shardId, replayedEvents) => {
     console.log(`✅ [SHARD ${shardId}] Resumed, replayed ${replayedEvents} events`);
 });
+
+client.on('shardReady', (shardId) => {
+    console.log(`✅ [SHARD ${shardId}] Ready`);
+});
+
+// WebSocket connection monitoring
+let lastHeartbeat = Date.now();
+client.on('debug', (info) => {
+    if (info.includes('Heartbeat')) {
+        lastHeartbeat = Date.now();
+    }
+});
+
+// Check connection health every 30 seconds
+setInterval(() => {
+    const timeSinceLastHeartbeat = Date.now() - lastHeartbeat;
+    if (timeSinceLastHeartbeat > 60000) { // No heartbeat for 1 minute
+        console.error('❌ [CONNECTION] No heartbeat for', Math.floor(timeSinceLastHeartbeat / 1000), 'seconds');
+        console.log('🔄 [CONNECTION] Attempting to reconnect...');
+        client.destroy();
+        setTimeout(() => loginWithRetry(), 5000);
+    }
+}, 30000);
 
 /* ===============================
    READY EVENT
@@ -707,7 +745,7 @@ app.listen(PORT, '0.0.0.0', async () => {
             } catch (err) {
                 console.error('💔 [KEEP-ALIVE] Heartbeat failed:', err.message);
             }
-        }, 300000); // Every 5 minutes
+        }, 600000); // Every 10 minutes (reduced to avoid rate limits)
     } else {
         console.log('⚠️ [KEEP-ALIVE] KOYEB_PUBLIC_URL not set. Self-ping disabled.');
     }
