@@ -552,10 +552,13 @@ router.get('/tickets', requireAuth, requireGuildAccess, async (req, res) => {
             const channel = guild.channels.cache.get(channelId);
             if (channel) {
                 validActiveTickets.push({
-                    channelId,
+                    id: channelId,
+                    channelId: channelId,
+                    user: data.user || 'Unknown',
                     userId: data.userId,
-                    createdAt: data.createdAt,
-                    status: 'active'
+                    created: data.created || data.createdAt,
+                    status: 'active',
+                    ticketNumber: data.ticketNumber || '0000'
                 });
             }
         }
@@ -567,12 +570,23 @@ router.get('/tickets', requireAuth, requireGuildAccess, async (req, res) => {
 
         res.json({
             active: validActiveTickets,
-            closed: closedTickets.map(ticket => ({
-                id: ticket.id,
-                userId: ticket.user,
-                closedAt: ticket.closed_at,
-                messageCount: ticket.messages ? (typeof ticket.messages === 'string' ? JSON.parse(ticket.messages).length : ticket.messages.length) : 0
-            }))
+            closed: closedTickets.map(ticket => {
+                const messages = ticket.messages ? (typeof ticket.messages === 'string' ? JSON.parse(ticket.messages) : ticket.messages) : [];
+                const ticketNumber = ticket.user; // user field contains ticket number (e.g., "0001")
+                const actualUser = messages.length > 0 ? messages[0].author : 'Unknown';
+                
+                return {
+                    id: ticket.id,
+                    ticketNumber: ticketNumber,
+                    user: actualUser,
+                    userId: ticket.user,
+                    created: ticket.closed_at, // We don't have created timestamp, use closed as fallback
+                    closedAt: ticket.closed_at,
+                    status: 'closed',
+                    messageCount: messages.length,
+                    messages: messages
+                };
+            })
         });
     } catch (error) {
         console.error('Tickets fetch error:', error);
@@ -751,14 +765,24 @@ router.get('/transcripts', requireAuth, requireGuildAccess, async (req, res) => 
             [guild.id]
         );
 
-        res.json({
-            transcripts: transcripts.map(t => ({
-                id: t.id,
-                userId: t.user,
-                closedAt: t.closed_at,
-                messageCount: t.messages ? (typeof t.messages === 'string' ? JSON.parse(t.messages).length : t.messages.length) : 0
-            }))
-        });
+        res.json(
+            transcripts.map(t => {
+                const messages = t.messages ? (typeof t.messages === 'string' ? JSON.parse(t.messages) : t.messages) : [];
+                const ticketNumber = t.user; // user field contains ticket number
+                const actualUser = messages.length > 0 ? messages[0].author : 'Unknown';
+                
+                return {
+                    id: t.id,
+                    ticketNumber: ticketNumber,
+                    user: actualUser,
+                    userId: t.user,
+                    closed_at: t.closed_at,
+                    closedAt: t.closed_at,
+                    messageCount: messages.length,
+                    messages: messages
+                };
+            })
+        );
     } catch (error) {
         console.error('Transcripts fetch error:', error);
         res.status(500).json({ error: 'Failed to fetch transcripts' });
