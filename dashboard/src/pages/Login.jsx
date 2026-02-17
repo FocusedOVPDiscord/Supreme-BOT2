@@ -7,8 +7,28 @@ export default function Login({ setIsAuthenticated, setUser }) {
   const { t } = useTranslation();
   const [toast, setToast] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState(null);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  // Load Cloudflare Turnstile script
+  useEffect(() => {
+    // Define callback function for Turnstile
+    window.onTurnstileSuccess = (token) => {
+      setTurnstileToken(token);
+    };
+
+    const script = document.createElement('script');
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
+    
+    return () => {
+      document.body.removeChild(script);
+      delete window.onTurnstileSuccess;
+    };
+  }, []);
 
   useEffect(() => {
     // Check if already authenticated
@@ -88,18 +108,28 @@ export default function Login({ setIsAuthenticated, setUser }) {
   };
 
   const handleDiscordLogin = async () => {
+    // Check if Turnstile token exists
+    if (!turnstileToken) {
+      setToast({ message: 'Please complete the security check', type: 'error' });
+      return;
+    }
+
     setLoading(true);
     try {
-      // Get OAuth URL from backend
+      // Get OAuth URL from backend with Turnstile token
       const response = await fetch('/api/dashboard/auth/url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
+        body: JSON.stringify({ turnstileToken }),
       });
       
       if (response.ok) {
         const data = await response.json();
         window.location.href = data.url;
       } else {
-        setToast({ message: 'Failed to initiate login', type: 'error' });
+        const error = await response.json();
+        setToast({ message: error.error || 'Failed to initiate login', type: 'error' });
         setLoading(false);
       }
     } catch (error) {
@@ -147,9 +177,19 @@ export default function Login({ setIsAuthenticated, setUser }) {
               </div>
             ) : (
               <>
+                {/* Cloudflare Turnstile */}
+                <div className="mb-6 flex justify-center">
+                  <div
+                    className="cf-turnstile"
+                    data-sitekey="0x4AAAAAACe1Ltn5pW6ar64p"
+                    data-callback="onTurnstileSuccess"
+                    data-theme="dark"
+                  ></div>
+                </div>
+
                 <button
                   onClick={handleDiscordLogin}
-                  disabled={loading}
+                  disabled={loading || !turnstileToken}
                   className="group relative w-full gradient-bg hover:opacity-90 text-white font-bold py-4 px-6 rounded-2xl transition-all duration-300 flex items-center justify-center gap-3 shadow-xl shadow-indigo-500/25 overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>

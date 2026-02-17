@@ -127,9 +127,35 @@ router.get('/auth/me', async (req, res) => {
  * GET /api/dashboard/auth/url
  * Returns the Discord OAuth2 URL
  */
-router.get('/auth/url', (req, res) => {
-    const authUrl = `https://discord.com/api/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=identify%20guilds`;
-    res.json({ url: authUrl });
+router.post('/auth/url', async (req, res) => {
+    try {
+        const { turnstileToken } = req.body;
+        
+        if (!turnstileToken) {
+            return res.status(400).json({ error: 'Security verification required' });
+        }
+
+        // Verify Turnstile token with Cloudflare
+        const turnstileSecret = process.env.TURNSTILE_SECRET_KEY || '0x4AAAAAACe1LlZJrP6OMIEhPga0I2QYTDI';
+        const verifyResponse = await axios.post('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+            secret: turnstileSecret,
+            response: turnstileToken,
+        });
+
+        if (!verifyResponse.data.success) {
+            console.error('[TURNSTILE] Verification failed:', verifyResponse.data);
+            return res.status(403).json({ error: 'Security verification failed' });
+        }
+
+        console.log('[TURNSTILE] Verification successful');
+        
+        // Generate OAuth URL
+        const authUrl = `https://discord.com/api/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=identify%20guilds`;
+        res.json({ url: authUrl });
+    } catch (error) {
+        console.error('[TURNSTILE] Error:', error);
+        res.status(500).json({ error: 'Security verification error' });
+    }
 });
 
 /**
