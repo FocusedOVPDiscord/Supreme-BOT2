@@ -384,9 +384,9 @@ router.get('/stats', requireAuth, requireGuildAccess, async (req, res) => {
         console.error('Error counting closed tickets:', error);
     }
 
-    // Get bot uptime
+    // Get bot uptime (convert from milliseconds to seconds)
     const client = req.app.locals.client;
-    const uptime = client.uptime || 0;
+    const uptime = client.uptime ? Math.floor(client.uptime / 1000) : 0;
     
     // Get channels and roles count
     const channelsCount = guild.channels.cache.size;
@@ -676,11 +676,39 @@ router.get('/giveaways', requireAuth, requireGuildAccess, async (req, res) => {
         const guild = getSelectedGuild(req);
         if (!guild) return res.status(404).json({ error: 'No server selected' });
 
-        // TODO: Implement giveaways fetching from database
-        // For now, return empty array
+        // Fetch all giveaways from storage
+        const allGiveawayIds = storage.get(guild.id, 'all_giveaways') || [];
+        
+        const activeGiveaways = [];
+        const endedGiveaways = [];
+        
+        for (const messageId of allGiveawayIds) {
+            const meta = storage.get(guild.id, `giveaway_meta_${messageId}`);
+            if (meta) {
+                const giveawayData = {
+                    id: messageId,
+                    messageId: meta.messageId,
+                    channelId: meta.channelId,
+                    prize: meta.prize,
+                    winnerCount: meta.winnerCount,
+                    endTime: meta.endTime,
+                    createdAt: meta.createdAt,
+                    status: meta.status || 'active',
+                    participantCount: meta.participantCount || 0,
+                    winners: meta.winners || []
+                };
+                
+                if (meta.status === 'ended') {
+                    endedGiveaways.push(giveawayData);
+                } else {
+                    activeGiveaways.push(giveawayData);
+                }
+            }
+        }
+        
         res.json({
-            active: [],
-            ended: []
+            active: activeGiveaways,
+            ended: endedGiveaways
         });
     } catch (error) {
         console.error('Giveaways fetch error:', error);
