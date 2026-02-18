@@ -413,7 +413,7 @@ client.once('ready', async () => {
             // Translation of the requested message:
             // "Never hand over your items first! Always use a server middleman. 
             // There are always tools like (DDoS - Lag - Crash), always use a middleman to guarantee your rights."
-            const stickyMessage = "<a:emoji:1448001411647279244> **Never hand over your items first! Always use a server middleman.**\n-# There are always tools like (DDoS - Lag - Crash), always use a middleman\n**Always to guarantee your rights!** <a:emoji:1448001411647279244>";
+            const stickyMessage = "<:Alert:1473671637004980294> **Never hand over your items first! Always use a server middleman.**\n-# There are always tools like (DDoS - Lag - Crash), always use a middleman\n**Always to guarantee your rights!** <:Alert:1473671637004980294>";
 
             // Optional: Delete previous sticky message to keep it at the bottom
             const messages = await channel.messages.fetch({ limit: 10 });
