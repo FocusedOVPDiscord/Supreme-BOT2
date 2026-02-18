@@ -1,6 +1,6 @@
 const express = require('express');
 const axios = require('axios');
-const { EmbedBuilder, ChannelType, AuditLogEvent, PermissionFlagsBits } = require('discord.js');
+const { EmbedBuilder, ChannelType, AuditLogEvent, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const router = express.Router();
 const storage = require('../commands/utility/storage.js');
 const inviteManager = require('../inviteManager.js');
@@ -1074,6 +1074,331 @@ router.get('/guild-data', requireAuth, requireGuildAccess, async (req, res) => {
         console.error('Guild data fetch error:', error);
         res.status(500).json({ error: 'Failed to fetch guild data' });
     }
+});
+
+// ==================== CHANNELS ENDPOINT ====================
+router.get('/channels', async (req, res) => {
+    try {
+        const client = req.app.get('discordClient');
+        const guildId = req.session?.guildId;
+        if (!guildId) return res.status(400).json({ error: 'No guild selected' });
+
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) return res.status(404).json({ error: 'Guild not found' });
+
+        const channels = guild.channels.cache
+            .filter(ch => ch.type === ChannelType.GuildText || ch.type === ChannelType.GuildCategory)
+            .map(ch => ({
+                id: ch.id,
+                name: ch.name,
+                type: ch.type === ChannelType.GuildText ? 0 : 4,
+                position: ch.position
+            }))
+            .sort((a, b) => a.position - b.position);
+
+        res.json(channels);
+    } catch (error) {
+        console.error('Channels fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch channels' });
+    }
+});
+
+// ==================== TICKET SETUP DEPLOY ====================
+router.post('/ticket-setup/deploy', async (req, res) => {
+    try {
+        const client = req.app.get('discordClient');
+        const guildId = req.session?.guildId;
+        if (!guildId) return res.status(400).json({ error: 'No guild selected' });
+
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) return res.status(404).json({ error: 'Guild not found' });
+
+        const { channelId, ticketCategoryId, embed, button } = req.body;
+        if (!channelId) return res.status(400).json({ error: 'Channel ID is required' });
+
+        const channel = guild.channels.cache.get(channelId);
+        if (!channel) return res.status(404).json({ error: 'Channel not found' });
+
+        // Save ticket category if provided
+        if (ticketCategoryId) {
+            storage.set(guildId, 'ticketCategoryId', ticketCategoryId);
+        }
+
+        // Build the embed
+        const ticketEmbed = new EmbedBuilder()
+            .setAuthor({ name: 'Supreme', iconURL: client.user.displayAvatarURL() })
+            .setTitle(embed.title || 'Middleman Tickets')
+            .setDescription(embed.description || 'Click the button below to create a ticket.')
+            .setColor(embed.color ? parseInt(embed.color.replace('#', ''), 16) : 0x00FF00)
+            .setThumbnail(client.user.displayAvatarURL())
+            .setFooter({ text: 'Supreme Bot', iconURL: client.user.displayAvatarURL() })
+            .setTimestamp();
+
+        if (embed.image) {
+            ticketEmbed.setImage(embed.image);
+        }
+
+        // Build the button
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('create_middleman_ticket')
+                .setLabel(button.label || 'Create Middleman Ticket')
+                .setStyle(ButtonStyle.Secondary)
+                .setEmoji(button.emoji || '🤝')
+        );
+
+        // Send to channel
+        await channel.send({ embeds: [ticketEmbed], components: [row] });
+
+        res.json({ success: true, message: 'Ticket panel deployed successfully!' });
+    } catch (error) {
+        console.error('Ticket setup deploy error:', error);
+        res.status(500).json({ error: 'Failed to deploy ticket panel: ' + error.message });
+    }
+});
+
+// ==================== PREMIUM / PAYMENT ENDPOINTS ====================
+
+// Get premium status for a guild
+router.get('/premium/status', async (req, res) => {
+    try {
+        const guildId = req.session?.guildId;
+        if (!guildId) return res.status(400).json({ error: 'No guild selected' });
+
+        const premiumData = storage.get(guildId, 'premium') || null;
+        if (!premiumData) {
+            return res.json({ isPremium: false, plan: null, expiresAt: null });
+        }
+
+        // Check if premium has expired
+        if (premiumData.expiresAt && Date.now() > premiumData.expiresAt) {
+            storage.set(guildId, 'premium', null);
+            return res.json({ isPremium: false, plan: null, expiresAt: null });
+        }
+
+        res.json({
+            isPremium: true,
+            plan: premiumData.plan,
+            expiresAt: premiumData.expiresAt,
+            activatedAt: premiumData.activatedAt,
+            paymentMethod: premiumData.paymentMethod
+        });
+    } catch (error) {
+        console.error('Premium status error:', error);
+        res.status(500).json({ error: 'Failed to fetch premium status' });
+    }
+});
+
+// Activate premium (called after payment verification)
+router.post('/premium/activate', async (req, res) => {
+    try {
+        const client = req.app.get('discordClient');
+        const guildId = req.session?.guildId;
+        if (!guildId) return res.status(400).json({ error: 'No guild selected' });
+
+        const { plan, paymentMethod, transactionId, duration } = req.body;
+        if (!plan || !paymentMethod) {
+            return res.status(400).json({ error: 'Plan and payment method are required' });
+        }
+
+        // Duration in milliseconds (default 30 days)
+        const durationMs = (duration || 30) * 24 * 60 * 60 * 1000;
+
+        const premiumData = {
+            plan,
+            paymentMethod,
+            transactionId: transactionId || 'manual',
+            activatedAt: Date.now(),
+            expiresAt: Date.now() + durationMs
+        };
+
+        storage.set(guildId, 'premium', premiumData);
+
+        // Save to database for persistence
+        try {
+            await query(
+                `INSERT INTO premium_subscriptions (guild_id, plan, payment_method, transaction_id, activated_at, expires_at) 
+                 VALUES (?, ?, ?, ?, NOW(), DATE_ADD(NOW(), INTERVAL ? DAY))
+                 ON DUPLICATE KEY UPDATE plan = ?, payment_method = ?, transaction_id = ?, activated_at = NOW(), expires_at = DATE_ADD(NOW(), INTERVAL ? DAY)`,
+                [guildId, plan, paymentMethod, transactionId || 'manual', duration || 30, plan, paymentMethod, transactionId || 'manual', duration || 30]
+            );
+        } catch (dbError) {
+            // If table doesn't exist, create it
+            await query(`
+                CREATE TABLE IF NOT EXISTS premium_subscriptions (
+                    guild_id VARCHAR(32) PRIMARY KEY,
+                    plan VARCHAR(32) NOT NULL,
+                    payment_method VARCHAR(32) NOT NULL,
+                    transaction_id VARCHAR(255),
+                    activated_at DATETIME NOT NULL,
+                    expires_at DATETIME NOT NULL
+                )
+            `);
+            await query(
+                `INSERT INTO premium_subscriptions (guild_id, plan, payment_method, transaction_id, activated_at, expires_at) 
+                 VALUES (?, ?, ?, ?, NOW(), DATE_ADD(NOW(), INTERVAL ? DAY))`,
+                [guildId, plan, paymentMethod, transactionId || 'manual', duration || 30]
+            );
+        }
+
+        res.json({ success: true, premium: premiumData });
+    } catch (error) {
+        console.error('Premium activation error:', error);
+        res.status(500).json({ error: 'Failed to activate premium' });
+    }
+});
+
+// Create PayPal order
+router.post('/premium/paypal/create-order', async (req, res) => {
+    try {
+        const { plan } = req.body;
+        const prices = { pro: '4.99', ultimate: '9.99' };
+        const price = prices[plan];
+        if (!price) return res.status(400).json({ error: 'Invalid plan' });
+
+        // Return order details for client-side PayPal integration
+        res.json({
+            plan,
+            amount: price,
+            currency: 'USD',
+            description: `Supreme Bot ${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan - 30 Days`
+        });
+    } catch (error) {
+        console.error('PayPal create order error:', error);
+        res.status(500).json({ error: 'Failed to create PayPal order' });
+    }
+});
+
+// Verify PayPal payment
+router.post('/premium/paypal/verify', async (req, res) => {
+    try {
+        const { orderId, plan } = req.body;
+        if (!orderId || !plan) return res.status(400).json({ error: 'Order ID and plan are required' });
+
+        // In production, verify the payment with PayPal API
+        // For now, trust the client-side verification
+        res.json({ verified: true, orderId, plan });
+    } catch (error) {
+        console.error('PayPal verify error:', error);
+        res.status(500).json({ error: 'Failed to verify PayPal payment' });
+    }
+});
+
+// Create Binance Pay order
+router.post('/premium/crypto/create-order', async (req, res) => {
+    try {
+        const { plan } = req.body;
+        const prices = { pro: '4.99', ultimate: '9.99' };
+        const price = prices[plan];
+        if (!price) return res.status(400).json({ error: 'Invalid plan' });
+
+        // Return crypto payment details
+        res.json({
+            plan,
+            amount: price,
+            currency: 'USDT',
+            network: 'BEP20',
+            description: `Supreme Bot ${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan - 30 Days`,
+            // The wallet address should be set via environment variable
+            walletAddress: process.env.CRYPTO_WALLET_ADDRESS || 'YOUR_WALLET_ADDRESS_HERE',
+            supportedCoins: ['USDT', 'BTC', 'ETH', 'BNB']
+        });
+    } catch (error) {
+        console.error('Crypto create order error:', error);
+        res.status(500).json({ error: 'Failed to create crypto order' });
+    }
+});
+
+// Create Stripe checkout session
+router.post('/premium/stripe/create-session', async (req, res) => {
+    try {
+        const { plan } = req.body;
+        const prices = { pro: '4.99', ultimate: '9.99' };
+        const price = prices[plan];
+        if (!price) return res.status(400).json({ error: 'Invalid plan' });
+
+        // Check if Stripe is configured
+        if (!process.env.STRIPE_SECRET_KEY) {
+            return res.status(503).json({ error: 'Stripe is not configured. Please contact the administrator.' });
+        }
+
+        const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+        const guildId = req.session?.guildId;
+
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items: [{
+                price_data: {
+                    currency: 'usd',
+                    product_data: {
+                        name: `Supreme Bot ${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan`,
+                        description: '30-day premium subscription',
+                    },
+                    unit_amount: Math.round(parseFloat(price) * 100),
+                },
+                quantity: 1,
+            }],
+            mode: 'payment',
+            success_url: `${process.env.BASE_URL || 'https://breakable-tiger-supremebot1-d8a3b39c.koyeb.app'}/dashboard/premium?success=true&plan=${plan}`,
+            cancel_url: `${process.env.BASE_URL || 'https://breakable-tiger-supremebot1-d8a3b39c.koyeb.app'}/dashboard/premium?canceled=true`,
+            metadata: {
+                guildId,
+                plan
+            }
+        });
+
+        res.json({ url: session.url, sessionId: session.id });
+    } catch (error) {
+        console.error('Stripe session error:', error);
+        res.status(500).json({ error: 'Failed to create Stripe session: ' + error.message });
+    }
+});
+
+// Get all premium features list
+router.get('/premium/features', async (req, res) => {
+    res.json({
+        plans: {
+            free: {
+                name: 'Free',
+                price: 0,
+                features: [
+                    'Basic ticket system (1 panel)',
+                    'Up to 5 giveaways/month',
+                    'Basic welcome messages',
+                    'Standard support',
+                    'Basic audit logs'
+                ]
+            },
+            pro: {
+                name: 'Pro',
+                price: 4.99,
+                features: [
+                    'Unlimited ticket panels',
+                    'Unlimited giveaways',
+                    'Custom welcome embeds',
+                    'Advanced auto-role',
+                    'Priority support',
+                    'Full audit logs',
+                    'Custom bot status'
+                ]
+            },
+            ultimate: {
+                name: 'Ultimate',
+                price: 9.99,
+                features: [
+                    'Everything in Pro',
+                    'AI Assistant access',
+                    'Custom branding',
+                    'Advanced analytics',
+                    'Multiple ticket panels',
+                    'Transcript exports',
+                    'Staff verification system',
+                    'Priority bot response',
+                    'Dedicated support channel'
+                ]
+            }
+        }
+    });
 });
 
 module.exports = router;

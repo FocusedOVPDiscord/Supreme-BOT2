@@ -1,0 +1,34 @@
+        // Fetch all giveaways from storage
+        const allGiveawayIds = storage.get(guild.id, 'all_giveaways') || [];
+        
+        const activeGiveaways = [];
+        const endedGiveaways = [];
+        
+        for (const messageId of allGiveawayIds) {
+            const meta = storage.get(guild.id, `giveaway_meta_${messageId}`);
+            if (meta) {
+                const giveawayData = {
+                    id: messageId,
+                    messageId: meta.messageId,
+                    channelId: meta.channelId,
+                    prize: meta.prize,
+                    winnerCount: meta.winnerCount,
+                    endTime: meta.endTime,
+                    createdAt: meta.createdAt,
+                    status: meta.status || 'active',
+                    participantCount: meta.participantCount || 0,
+                    winners: meta.winners || []
+                };
+                
+                if (meta.status === 'ended') {
+                    endedGiveaways.push(giveawayData);
+                } else {
+                    activeGiveaways.push(giveawayData);
+                }
+            }
+        }
+        
+        res.json({
+            active: activeGiveaways,
+            ended: endedGiveaways
+        });

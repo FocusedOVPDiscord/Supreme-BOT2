@@ -48,6 +48,9 @@ export default function Sidebar({ user, selectedGuild, setSelectedGuild, setIsAu
     { path: '/dashboard/tickets', label: t('nav.tickets'), icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4v-3a2 2 0 00-2-2H5z" /></svg>
     )},
+    { path: '/dashboard/ticket-setup', label: 'Ticket Setup', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+    )},
     { path: '/dashboard/users', label: t('nav.users'), icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
     )},
@@ -73,7 +76,10 @@ export default function Sidebar({ user, selectedGuild, setSelectedGuild, setIsAu
     { path: `/dashboard/staff-verification/${selectedGuild?.id || ''}`, label: t('nav.staffVerification'), icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
     ), disabled: !selectedGuild },
-    { path: '/dashboard/growtopia', label: '🎮 Growtopia Prices', icon: (
+    { path: '/dashboard/premium', label: 'Premium', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" /></svg>
+    ), special: 'premium' },
+    { path: '/dashboard/growtopia', label: 'Growtopia Prices', icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" /></svg>
     )},
   ];
@@ -159,12 +165,16 @@ export default function Sidebar({ user, selectedGuild, setSelectedGuild, setIsAu
               to={item.path}
               onClick={onClose}
               className={`flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 group ${
-                isActive(item.path)
-                  ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 shadow-lg shadow-indigo-500/10'
-                  : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                item.special === 'premium'
+                  ? isActive(item.path)
+                    ? 'bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-400 border border-amber-500/30 shadow-lg shadow-amber-500/10'
+                    : 'text-amber-400/70 hover:bg-amber-500/10 hover:text-amber-400'
+                  : isActive(item.path)
+                    ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 shadow-lg shadow-indigo-500/10'
+                    : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
               }`}
             >
-              <div className={`transition-colors duration-300 ${isActive(item.path) ? 'text-indigo-400' : 'group-hover:text-slate-200'}`}>
+              <div className={`transition-colors duration-300 ${item.special === 'premium' ? 'text-amber-400' : isActive(item.path) ? 'text-indigo-400' : 'group-hover:text-slate-200'}`}>
                 {item.icon}
               </div>
               {isOpen && <span className="font-medium">{item.label}</span>}

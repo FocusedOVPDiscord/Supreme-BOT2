@@ -18,6 +18,8 @@ import AI from './pages/AI';
 import StaffVerification from './pages/StaffVerification';
 import WelcomeSetup from './pages/WelcomeSetup';
 import Growtopia from './pages/Growtopia';
+import Premium from './pages/Premium';
+import TicketSetup from './pages/TicketSetup';
 import Sidebar from './components/Sidebar';
 import CursorFollower from './components/CursorFollower';
 import './App.css';
@@ -169,6 +171,8 @@ function App() {
                         <Route path="/staff-verification/:guildId" element={<StaffVerification />} />
                         <Route path="/welcome-setup/:guildId" element={<WelcomeSetup />} />
                         <Route path="/growtopia" element={<Growtopia selectedGuild={selectedGuild} />} />
+                        <Route path="/premium" element={<Premium selectedGuild={selectedGuild} />} />
+                        <Route path="/ticket-setup" element={<TicketSetup selectedGuild={selectedGuild} />} />
                         <Route path="*" element={<Navigate to="/dashboard" replace />} />
                       </Routes>
                     </main>
