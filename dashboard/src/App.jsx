@@ -19,6 +19,7 @@ import StaffVerification from './pages/StaffVerification';
 import WelcomeSetup from './pages/WelcomeSetup';
 import Growtopia from './pages/Growtopia';
 import Sidebar from './components/Sidebar';
+import CursorFollower from './components/CursorFollower';
 import './App.css';
 
 function App() {
@@ -81,6 +82,7 @@ function App() {
 
   return (
     <Router>
+      <CursorFollower />
       <Routes>
         {/* Public routes */}
         <Route 
