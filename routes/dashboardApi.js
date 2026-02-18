@@ -420,7 +420,7 @@ router.get('/stats', requireAuth, requireGuildAccess, async (req, res) => {
         );
         recentTickets = results.map(ticket => ({
             id: ticket.id,
-            title: `Ticket by User ${ticket.user ? ticket.user.slice(0, 8) : 'Unknown'}`,
+            title: `Ticket #${ticket.user || '0000'}`,
             status: 'Closed'
         }));
     } catch (error) {
@@ -538,6 +538,7 @@ router.get('/invites', requireAuth, requireGuildAccess, async (req, res) => {
 
 /**
  * GET /api/dashboard/tickets
+ * Returns FLAT ARRAY of active tickets only (frontend expects Array.isArray(data))
  */
 router.get('/tickets', requireAuth, requireGuildAccess, async (req, res) => {
     try {
@@ -546,51 +547,104 @@ router.get('/tickets', requireAuth, requireGuildAccess, async (req, res) => {
 
         // Get active tickets and clean up stale entries
         const activeTicketsData = storage.get(guild.id, 'active_tickets') || {};
-        const validActiveTickets = [];
+        const tickets = [];
+        let hasStale = false;
         
         for (const [channelId, data] of Object.entries(activeTicketsData)) {
             const channel = guild.channels.cache.get(channelId);
             if (channel) {
-                validActiveTickets.push({
+                const num = data.ticketNumber || '0000';
+                tickets.push({
                     id: channelId,
-                    channelId: channelId,
+                    ticketNumber: `${num}`,
                     user: data.user || 'Unknown',
                     userId: data.userId,
-                    created: data.created || data.createdAt,
-                    status: 'active',
-                    ticketNumber: data.ticketNumber || '0000'
+                    created: data.created || data.createdAt || new Date().toISOString(),
+                    status: 'active'
                 });
+            } else {
+                hasStale = true;
             }
         }
 
-        const closedTickets = await query(
-            'SELECT id, guild_id, user, closed_at, messages FROM transcripts WHERE guild_id = ? ORDER BY closed_at DESC LIMIT 50',
-            [guild.id]
-        );
+        // Clean up stale entries
+        if (hasStale) {
+            const validTickets = {};
+            for (const [channelId, data] of Object.entries(activeTicketsData)) {
+                if (guild.channels.cache.get(channelId)) {
+                    validTickets[channelId] = data;
+                }
+            }
+            await storage.set(guild.id, 'active_tickets', validTickets);
+        }
 
-        res.json({
-            active: validActiveTickets,
-            closed: closedTickets.map(ticket => {
-                const messages = ticket.messages ? (typeof ticket.messages === 'string' ? JSON.parse(ticket.messages) : ticket.messages) : [];
-                const ticketNumber = ticket.user; // user field contains ticket number (e.g., "0001")
-                const actualUser = messages.length > 0 ? messages[0].author : 'Unknown';
-                
-                return {
-                    id: ticket.id,
-                    ticketNumber: ticketNumber,
-                    user: actualUser,
-                    userId: ticket.user,
-                    created: ticket.closed_at, // We don't have created timestamp, use closed as fallback
-                    closedAt: ticket.closed_at,
-                    status: 'closed',
-                    messageCount: messages.length,
-                    messages: messages
-                };
-            })
-        });
+        res.json(tickets);
     } catch (error) {
         console.error('Tickets fetch error:', error);
         res.status(500).json({ error: 'Failed to fetch tickets' });
+    }
+});
+
+/**
+ * GET /api/dashboard/tickets/:id/messages
+ * Returns messages from an active ticket channel
+ */
+router.get('/tickets/:id/messages', requireAuth, requireGuildAccess, async (req, res) => {
+    try {
+        const guild = getSelectedGuild(req);
+        if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+        const channel = guild.channels.cache.get(req.params.id);
+        if (!channel) return res.status(404).json({ error: 'Ticket channel not found' });
+
+        // Fetch messages from the channel
+        const fetchedMessages = await channel.messages.fetch({ limit: 100 });
+        const messages = Array.from(fetchedMessages.values())
+            .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
+            .map(msg => ({
+                id: msg.id,
+                author: {
+                    username: msg.author.username,
+                    avatar: msg.author.displayAvatarURL({ size: 64 }),
+                    bot: msg.author.bot
+                },
+                content: msg.content || (msg.embeds.length > 0 ? '[Embed]' : ''),
+                timestamp: msg.createdTimestamp,
+                attachments: Array.from(msg.attachments.values()).map(a => a.url)
+            }));
+
+        res.json(messages);
+    } catch (error) {
+        console.error('Ticket messages fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch messages' });
+    }
+});
+
+/**
+ * DELETE /api/dashboard/tickets/:id
+ * Deletes a ticket channel from Discord
+ */
+router.delete('/tickets/:id', requireAuth, requireGuildAccess, async (req, res) => {
+    try {
+        const guild = getSelectedGuild(req);
+        if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+        const channel = guild.channels.cache.get(req.params.id);
+        if (channel) {
+            await channel.delete('Deleted from dashboard');
+        }
+
+        // Remove from active tickets storage
+        const activeTickets = storage.get(guild.id, 'active_tickets') || {};
+        if (activeTickets[req.params.id]) {
+            delete activeTickets[req.params.id];
+            await storage.set(guild.id, 'active_tickets', activeTickets);
+        }
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Ticket delete error:', error);
+        res.status(500).json({ error: 'Failed to delete ticket' });
     }
 });
 
@@ -633,21 +687,44 @@ router.get('/users', requireAuth, requireGuildAccess, async (req, res) => {
         const limit = parseInt(req.query.limit) || 40;
         const search = req.query.search || '';
 
-        // Use cached members only to avoid rate limiting
-        let members = Array.from(guild.members.cache.values());
+        // Fetch all members to ensure we have the full list
+        try {
+            await guild.members.fetch();
+        } catch (e) {
+            // If fetch fails (rate limit), fall back to cached members
+            console.warn('Members fetch failed, using cache:', e.message);
+        }
+
+        let members = Array.from(guild.members.cache.values())
+            .filter(m => !m.user.bot); // Exclude bots from user list
 
         // Filter by search term
         if (search) {
             const searchLower = search.toLowerCase();
             members = members.filter(member => 
                 member.user.username.toLowerCase().includes(searchLower) ||
-                member.user.tag.toLowerCase().includes(searchLower)
+                member.user.id.includes(search) ||
+                (member.nickname && member.nickname.toLowerCase().includes(searchLower))
             );
+        }
+
+        // Sort by joined date (newest first)
+        members.sort((a, b) => (b.joinedTimestamp || 0) - (a.joinedTimestamp || 0));
+
+        // Get invite data from database
+        const inviteMap = {};
+        try {
+            const inviteRows = await query('SELECT user_id, regular, fake, bonus, `left` FROM invites WHERE guild_id = ?', [guild.id]);
+            for (const row of inviteRows) {
+                inviteMap[row.user_id] = (row.regular || 0) - (row.left || 0) - (row.fake || 0) + (row.bonus || 0);
+            }
+        } catch (e) {
+            console.warn('Failed to fetch invite data:', e.message);
         }
 
         // Pagination
         const total = members.length;
-        const totalPages = Math.ceil(total / limit);
+        const totalPages = Math.ceil(total / limit) || 1;
         const start = (page - 1) * limit;
         const end = start + limit;
         const paginatedMembers = members.slice(start, end);
@@ -655,15 +732,9 @@ router.get('/users', requireAuth, requireGuildAccess, async (req, res) => {
         const users = paginatedMembers.map(member => ({
             id: member.id,
             username: member.user.username,
-            discriminator: member.user.discriminator,
-            tag: member.user.tag,
             avatar: member.user.displayAvatarURL({ size: 64 }),
-            joinedAt: member.joinedTimestamp,
-            roles: member.roles.cache.map(role => ({
-                id: role.id,
-                name: role.name,
-                color: role.hexColor
-            })).filter(role => role.id !== guild.id)
+            invites: inviteMap[member.id] || 0,
+            joinedAt: member.joinedTimestamp
         }));
 
         res.json({
@@ -672,12 +743,57 @@ router.get('/users', requireAuth, requireGuildAccess, async (req, res) => {
                 page: page,
                 totalPages: totalPages,
                 total: total,
-                limit: limit
+                limit: limit,
+                hasPrev: page > 1,
+                hasNext: page < totalPages
             }
         });
     } catch (error) {
         console.error('Users fetch error:', error);
         res.status(500).json({ error: 'Failed to fetch users' });
+    }
+});
+
+/**
+ * POST /api/dashboard/users/:id/moderate
+ * Moderate a user (warn, mute, kick, ban)
+ */
+router.post('/users/:id/moderate', requireAuth, requireGuildAccess, async (req, res) => {
+    try {
+        const guild = getSelectedGuild(req);
+        if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+        const { action, reason } = req.body;
+        const targetId = req.params.id;
+        const member = await guild.members.fetch(targetId).catch(() => null);
+
+        if (!member) return res.status(404).json({ error: 'Member not found' });
+
+        switch (action) {
+            case 'warn':
+                // Store warning in storage
+                const warnings = storage.get(guild.id, `warnings_${targetId}`) || [];
+                warnings.push({ reason, by: req.session.user.id, at: Date.now() });
+                await storage.set(guild.id, `warnings_${targetId}`, warnings);
+                try { await member.send(`⚠️ You have been warned in **${guild.name}**: ${reason}`); } catch (e) {}
+                break;
+            case 'mute':
+                await member.timeout(60 * 60 * 1000, reason); // 1 hour timeout
+                break;
+            case 'kick':
+                await member.kick(reason);
+                break;
+            case 'ban':
+                await member.ban({ reason });
+                break;
+            default:
+                return res.status(400).json({ error: 'Invalid action' });
+        }
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Moderate error:', error);
+        res.status(500).json({ error: 'Failed to moderate user' });
     }
 });
 
@@ -706,6 +822,7 @@ router.get('/guild_data', requireAuth, requireGuildAccess, async (req, res) => {
 
 /**
  * GET /api/dashboard/giveaways - Giveaways endpoint
+ * Returns FLAT ARRAY of all giveaways (frontend expects Array.isArray(data))
  */
 router.get('/giveaways', requireAuth, requireGuildAccess, async (req, res) => {
     try {
@@ -714,41 +831,125 @@ router.get('/giveaways', requireAuth, requireGuildAccess, async (req, res) => {
 
         // Fetch all giveaways from storage
         const allGiveawayIds = storage.get(guild.id, 'all_giveaways') || [];
-        
-        const activeGiveaways = [];
-        const endedGiveaways = [];
+        const giveaways = [];
         
         for (const messageId of allGiveawayIds) {
             const meta = storage.get(guild.id, `giveaway_meta_${messageId}`);
             if (meta) {
-                const giveawayData = {
-                    id: messageId,
-                    messageId: meta.messageId,
-                    channelId: meta.channelId,
-                    prize: meta.prize,
-                    winnerCount: meta.winnerCount,
-                    endTime: meta.endTime,
-                    createdAt: meta.createdAt,
-                    status: meta.status || 'active',
-                    participantCount: meta.participantCount || 0,
-                    winners: meta.winners || []
-                };
+                // Get live participant count from reaction storage
+                const participantIds = storage.get(guild.id, `giveaway_${messageId}`) || [];
                 
-                if (meta.status === 'ended') {
-                    endedGiveaways.push(giveawayData);
-                } else {
-                    activeGiveaways.push(giveawayData);
-                }
+                giveaways.push({
+                    id: messageId,
+                    prize: meta.prize || 'Unknown Prize',
+                    hostTag: meta.hostTag || 'Unknown',
+                    status: meta.status || 'active',
+                    endTime: meta.endTime || null, // Already stored as unix seconds
+                    participants: meta.participantCount || participantIds.length || 0,
+                    winnersCount: meta.winnersCount || meta.winnerCount || 1,
+                    winners: meta.winners || []
+                });
             }
         }
         
-        res.json({
-            active: activeGiveaways,
-            ended: endedGiveaways
-        });
+        res.json(giveaways);
     } catch (error) {
         console.error('Giveaways fetch error:', error);
         res.status(500).json({ error: 'Failed to fetch giveaways' });
+    }
+});
+
+/**
+ * POST /api/dashboard/giveaways/:id/end
+ * End a giveaway early from the dashboard
+ */
+router.post('/giveaways/:id/end', requireAuth, requireGuildAccess, async (req, res) => {
+    try {
+        const guild = getSelectedGuild(req);
+        if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+        const messageId = req.params.id;
+        const meta = storage.get(guild.id, `giveaway_meta_${messageId}`);
+        if (!meta) return res.status(404).json({ error: 'Giveaway not found' });
+
+        // Get participants
+        const participants = storage.get(guild.id, `giveaway_${messageId}`) || [];
+        const winnersCount = meta.winnersCount || meta.winnerCount || 1;
+        
+        // Pick random winners
+        const winners = [];
+        const pool = [...participants];
+        for (let i = 0; i < Math.min(winnersCount, pool.length); i++) {
+            const idx = Math.floor(Math.random() * pool.length);
+            winners.push(pool.splice(idx, 1)[0]);
+        }
+
+        // Update metadata
+        meta.status = 'ended';
+        meta.winners = winners;
+        meta.participantCount = participants.length;
+        await storage.set(guild.id, `giveaway_meta_${messageId}`, meta);
+
+        // Try to send end message in the channel
+        try {
+            const channel = guild.channels.cache.get(meta.channelId);
+            if (channel) {
+                if (winners.length > 0) {
+                    const winnerMentions = winners.map(id => `<@${id}>`).join(', ');
+                    await channel.send(`\uD83C\uDF89 The giveaway for **${meta.prize}** has ended! Winners: ${winnerMentions}`);
+                } else {
+                    await channel.send(`The giveaway for **${meta.prize}** has ended, but no one participated.`);
+                }
+            }
+        } catch (e) {
+            console.error('Failed to send giveaway end message:', e);
+        }
+
+        res.json({ success: true, winners });
+    } catch (error) {
+        console.error('End giveaway error:', error);
+        res.status(500).json({ error: 'Failed to end giveaway' });
+    }
+});
+
+/**
+ * DELETE /api/dashboard/giveaways/:id
+ * Delete a giveaway from the dashboard
+ */
+router.delete('/giveaways/:id', requireAuth, requireGuildAccess, async (req, res) => {
+    try {
+        const guild = getSelectedGuild(req);
+        if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+        const messageId = req.params.id;
+        const meta = storage.get(guild.id, `giveaway_meta_${messageId}`);
+
+        // Try to delete the giveaway message from Discord
+        if (meta && meta.channelId) {
+            try {
+                const channel = guild.channels.cache.get(meta.channelId);
+                if (channel) {
+                    const msg = await channel.messages.fetch(messageId).catch(() => null);
+                    if (msg) await msg.delete();
+                }
+            } catch (e) {
+                console.error('Failed to delete giveaway message:', e);
+            }
+        }
+
+        // Remove from storage
+        await storage.set(guild.id, `giveaway_meta_${messageId}`, undefined);
+        await storage.set(guild.id, `giveaway_${messageId}`, undefined);
+        
+        // Remove from all_giveaways list
+        const allGiveaways = storage.get(guild.id, 'all_giveaways') || [];
+        const filtered = allGiveaways.filter(id => id !== messageId);
+        await storage.set(guild.id, 'all_giveaways', filtered);
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Delete giveaway error:', error);
+        res.status(500).json({ error: 'Failed to delete giveaway' });
     }
 });
 
@@ -767,18 +968,18 @@ router.get('/transcripts', requireAuth, requireGuildAccess, async (req, res) => 
 
         res.json(
             transcripts.map(t => {
-                const messages = t.messages ? (typeof t.messages === 'string' ? JSON.parse(t.messages) : t.messages) : [];
-                const ticketNumber = t.user; // user field contains ticket number
-                const actualUser = messages.length > 0 ? messages[0].author : 'Unknown';
-                
+                let messages = [];
+                try {
+                    messages = t.messages ? (typeof t.messages === 'string' ? JSON.parse(t.messages) : t.messages) : [];
+                } catch (e) {
+                    messages = [];
+                }
+                // t.user contains the ticket number (e.g., "0001")
+                // Frontend uses transcript.user as the ticket number display: "Ticket #{transcript.user}"
                 return {
                     id: t.id,
-                    ticketNumber: ticketNumber,
-                    user: actualUser,
-                    userId: t.user,
+                    user: t.user, // This is the ticket number, used by frontend as "Ticket #XXXX"
                     closed_at: t.closed_at,
-                    closedAt: t.closed_at,
-                    messageCount: messages.length,
                     messages: messages
                 };
             })
