@@ -42,7 +42,7 @@ export default function ThemeLanguageSwitcher() {
 
   return (
     <div className="flex items-center justify-center gap-3 w-full">
-      {/* Theme Toggle - Melton Style */}
+      {/* Theme Toggle */}
       <button
         onClick={toggleTheme}
         className="flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 hover:border-indigo-500/40 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-indigo-500/20 group"
@@ -59,14 +59,19 @@ export default function ThemeLanguageSwitcher() {
         )}
       </button>
 
-      {/* Language Selector - Melton Style */}
+      {/* Language Selector - Globe Icon Style */}
       <div className="relative flex-1">
         <button
           onClick={() => setShowLanguageMenu(!showLanguageMenu)}
           className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 hover:border-indigo-500/40 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-indigo-500/20 group"
         >
           <div className="flex items-center gap-2">
-            <span className="text-xl">{currentLanguage.flag}</span>
+            {/* Globe Icon */}
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500/30 to-purple-500/30 flex items-center justify-center">
+              <svg className="w-4 h-4 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+              </svg>
+            </div>
             <span className="text-sm font-medium text-white/90 group-hover:text-white transition-colors">
               {currentLanguage.code.toUpperCase()}
             </span>
@@ -81,7 +86,7 @@ export default function ThemeLanguageSwitcher() {
           </svg>
         </button>
 
-        {/* Language Dropdown - Melton Style */}
+        {/* Language Dropdown */}
         {showLanguageMenu && (
           <>
             {/* Backdrop */}

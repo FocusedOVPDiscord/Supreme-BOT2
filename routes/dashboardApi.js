@@ -998,16 +998,81 @@ router.get('/settings', requireAuth, requireGuildAccess, async (req, res) => {
         const guild = getSelectedGuild(req);
         if (!guild) return res.status(404).json({ error: 'No server selected' });
 
-        // Fetch settings from storage
-        const settings = storage.get(guild.id, 'settings') || {};
+        // Fetch auto-role from storage (same key as /auto-role command)
+        const autoRoleId = storage.get(guild.id, 'autoRoleId') || '';
+        
+        // Fetch ticket category from storage
+        const ticketCategory = storage.get(guild.id, 'ticketCategoryId') || '';
 
         res.json({
-            guildId: guild.id,
-            settings: settings
+            autoRole: autoRoleId,
+            ticketCategory: ticketCategory
         });
     } catch (error) {
         console.error('Settings fetch error:', error);
         res.status(500).json({ error: 'Failed to fetch settings' });
+    }
+});
+
+/**
+ * POST /api/dashboard/settings - Save bot settings
+ */
+router.post('/settings', requireAuth, requireGuildAccess, async (req, res) => {
+    try {
+        const guild = getSelectedGuild(req);
+        if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+        const { autoRole, ticketCategory } = req.body;
+
+        // Save auto-role (same key as /auto-role command)
+        if (autoRole !== undefined) {
+            storage.set(guild.id, 'autoRoleId', autoRole || null);
+        }
+
+        // Save ticket category
+        if (ticketCategory !== undefined) {
+            storage.set(guild.id, 'ticketCategoryId', ticketCategory || null);
+        }
+
+        res.json({ success: true, message: 'Settings saved successfully' });
+    } catch (error) {
+        console.error('Settings save error:', error);
+        res.status(500).json({ error: 'Failed to save settings' });
+    }
+});
+
+/**
+ * GET /api/dashboard/guild-data - Guild data with roles and channels for dropdowns
+ */
+router.get('/guild-data', requireAuth, requireGuildAccess, async (req, res) => {
+    try {
+        const guild = getSelectedGuild(req);
+        if (!guild) return res.status(404).json({ error: 'No server selected' });
+
+        // Get roles (exclude @everyone and managed/bot roles)
+        const roles = guild.roles.cache
+            .filter(role => role.id !== guild.id && !role.managed)
+            .sort((a, b) => b.position - a.position)
+            .map(role => ({
+                id: role.id,
+                name: role.name,
+                color: role.hexColor !== '#000000' ? role.hexColor : null,
+                position: role.position
+            }));
+
+        // Get text channels
+        const channels = guild.channels.cache
+            .filter(ch => ch.type === 0) // Text channels only
+            .sort((a, b) => a.position - b.position)
+            .map(ch => ({
+                id: ch.id,
+                name: ch.name
+            }));
+
+        res.json({ roles, channels });
+    } catch (error) {
+        console.error('Guild data fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch guild data' });
     }
 });
 
